@@ -82,6 +82,7 @@ npm install
 npm run dev
 
 El backend se ejecuta en: http://localhost:3000
+---
 
 ### Frontend
 
