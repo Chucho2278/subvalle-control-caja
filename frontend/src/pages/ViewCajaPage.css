@@ -1,0 +1,196 @@
+/* frontend/src/pages/ViewCajaPage.css */
+
+/* contenedor de la página */
+.view-container {
+  padding: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111;
+  box-sizing: border-box;
+}
+
+/* toolbar arriba */
+.view-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ticket/receipt */
+.receipt {
+  width: 57.5mm; /* ancho objetivo */
+  max-width: 100%;
+  background: #fff;
+  padding: 8px;
+  border: 1px solid #e6e6e6;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.02);
+  font-size: 12px;
+  line-height: 1.1;
+  box-sizing: border-box;
+}
+
+/* cabecera */
+.rc-header {
+  text-align: center;
+  margin-bottom: 6px;
+}
+.rc-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.rc-sub {
+  font-size: 11px;
+}
+.rc-sub-sm {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* rows */
+.rc-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+.rc-row.two-cols {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rc-section-title {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* convenios detalle: listado */
+.rc-convenios {
+  margin-top: 6px;
+}
+.rc-conv-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dashed #eee;
+}
+.rc-conv-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rc-conv-cant {
+  width: 38px;
+  text-align: right;
+}
+.rc-conv-val {
+  width: 72px;
+  text-align: right;
+}
+
+/* DIFERENCIA y ESTADO (resaltado) */
+.rc-diferencia {
+  font-weight: 700;
+  color: #111;
+  text-align: right;
+}
+
+/* estado con mayúscula, color y pequeño recuadro para resaltarlo */
+.rc-estado {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #fff2f2; /* fondo suave */
+  border: 1px solid #f2b8b8; /* borde suave */
+  color: #b91c1c; /* rojo oscuro */
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* footer */
+.rc-footer {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+/* impresión: ajustar tamaño a 57.5 x 83 mm (o más alto si se necesita) */
+@page {
+  size: 57.5mm 150mm; /* ancho x alto; puedes bajar el alto si quieres cortar */
+  margin: 0mm;
+}
+
+@media print {
+  /* ocultar todo excepto la receipt para impresión */
+  body * {
+    visibility: hidden;
+  }
+  .receipt,
+  .receipt * {
+    visibility: visible;
+  }
+
+  /* colocar la receipt en la esquina superior izquierda para la impresora térmica */
+  .receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-shadow: none;
+    border: none;
+    margin: 0;
+    padding: 6px;
+    background: white;
+    width: 57.5mm;
+  }
+
+  /* ajustar tamaños para impresión */
+  .rc-title {
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .rc-sub,
+  .rc-sub-sm {
+    font-size: 10px;
+  }
+  .rc-row,
+  .rc-conv-row {
+    font-size: 10px;
+    line-height: 1.05;
+  }
+  .rc-estado {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+  .rc-diferencia {
+    font-weight: 700;
+  }
+
+  /* ocultar toolbar en impresión (debería estar oculto por visibility, pero por si acaso) */
+  .view-toolbar {
+    display: none !important;
+  }
+
+  /* asegura que el pie quede visible */
+  .rc-footer {
+    font-size: 10px;
+  }
+
+  /* si tu impresora necesita exactamente la altura, ajusta @page arriba */
+}
+
+/* pequeños refinamientos para pantallas muy pequeñas */
+@media (max-width: 420px) {
+  .receipt {
+    margin: 6px;
+    width: calc(100% - 12px);
+    font-size: 12px;
+  }
+  .rc-conv-val {
+    width: 60px;
+  }
+  .rc-conv-cant {
+    width: 34px;
+  }
+}

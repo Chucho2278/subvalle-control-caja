@@ -1,0 +1,182 @@
+/* src/pages/RegisterCajaPage.css */
+
+/* Container */
+.rcp-container {
+  max-width: 1100px;
+  margin: 18px auto;
+  padding: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111;
+  box-sizing: border-box;
+  font-size: clamp(14px, 1.4vw, 16px);
+}
+.rcp-container * {
+  box-sizing: border-box;
+}
+
+.rcp-title {
+  font-size: 1.75rem;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+/* Top row */
+.rcp-toprow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.rcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Sections */
+.rcp-section {
+  border: 1px solid #d9d9d9;
+  padding: 12px;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  background: #fff;
+}
+.rcp-legend {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+
+/* Cajero */
+.rcp-cajero-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: center;
+}
+
+/* INGRESOS grid (2 columnas desktop, 1 móvil) */
+.rcp-ingresos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.rcp-ingreso-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rcp-ingreso-item input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+}
+
+/* General inputs/selects */
+.rcp-container input,
+.rcp-container select,
+.rcp-container textarea,
+.rcp-container button {
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+/* CONVENIOS: grid de 4 columnas en desktop */
+.rcp-convenios-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.rcp-convenio-item {
+  display: grid;
+  grid-template-columns: 1fr 120px 160px 90px; /* select | cantidad | valor | acciones */
+  gap: 12px;
+  align-items: center;
+  border: 1px dashed #eee;
+  padding: 8px;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+/* IMPORTANTE: que label ponga texto arriba y input abajo dentro de su celda */
+.rcp-convenio-item label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+/* Select e inputs ocupan 100% */
+.rcp-convenio-item select,
+.rcp-convenio-item input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 8px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  font-size: 0.95rem;
+}
+
+/* Acción a la derecha */
+.rcp-convenio-actions {
+  justify-self: end;
+}
+
+/* Add button */
+.rcp-add-btn-row {
+  margin-top: 6px;
+}
+
+/* Buttons + messages */
+.rcp-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rcp-error {
+  color: #b91c1c;
+  margin-top: 6px;
+}
+.rcp-success {
+  color: #0b6b3a;
+  margin-top: 6px;
+}
+
+/* MOBILE: apilar convenios y ajustar tamaño táctil */
+@media (max-width: 900px) {
+  .rcp-ingresos-grid {
+    grid-template-columns: 1fr;
+  }
+  .rcp-convenio-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .rcp-convenio-actions {
+    justify-self: start;
+    margin-top: 6px;
+  }
+  .rcp-container {
+    font-size: 15px;
+  }
+  .rcp-container input,
+  .rcp-container select,
+  .rcp-container textarea {
+    font-size: 1rem;
+    padding: 10px;
+  }
+  .rcp-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* Extra padding pantallas muy anchas */
+@media (min-width: 1100px) {
+  .rcp-container {
+    padding: 18px 22px;
+  }
+}
