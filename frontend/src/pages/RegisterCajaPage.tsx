@@ -520,7 +520,7 @@ export default function RegisterCajaPage(): ReactElement {
     setError(null);
     setMensaje(null);
 
-    // validaciones simples
+    // validaciones simples (igual que tenías)
     if (!form.turno) {
       setError("Selecciona un turno");
       return;
@@ -569,86 +569,134 @@ export default function RegisterCajaPage(): ReactElement {
           it.nombre_convenio
       );
 
-    const payload: Record<string, unknown> = {
+    // parsear/normalizar números
+    const ventaTotalNum = parseFormattedInteger(form.ventaTotalRegistrada) || 0;
+    const efectivoNum = parseFormattedInteger(form.efectivoEnCaja) || 0;
+    const tarjetasNum = parseFormattedInteger(form.tarjetas) || 0;
+    const tarjetasCantidadNum =
+      Math.round(parseFormattedInteger(form.tarjetas_cantidad) || 0) || 0;
+    const conveniosNum = parseFormattedInteger(form.convenios) || 0;
+    const conveniosCantidadNum =
+      Math.round(parseFormattedInteger(form.convenios_cantidad) || 0) || 0;
+    const bonosNum = parseFormattedInteger(form.bonos_sodexo) || 0;
+    const bonosCantidadNum =
+      Math.round(parseFormattedInteger(form.bonos_sodexo_cantidad) || 0) || 0;
+    const pagosInternosNum = parseFormattedInteger(form.pagos_internos) || 0;
+    const pagosInternosCantidadNum =
+      Math.round(parseFormattedInteger(form.pagos_internos_cantidad) || 0) || 0;
+
+    // PAYLOAD en snake_case (solo este)
+    const payloadSnakeOnly: Record<string, unknown> = {
       restaurante: form.restaurante,
       turno: form.turno,
-      fecha_registro: form.fecha_registro,
-      hora_registro: form.hora_registro,
-      ventaTotalRegistrada:
-        parseFormattedInteger(form.ventaTotalRegistrada) || 0,
-      efectivoEnCaja: parseFormattedInteger(form.efectivoEnCaja) || 0,
-      tarjetas: parseFormattedInteger(form.tarjetas) || 0,
-      tarjetas_cantidad: Math.round(
-        parseFormattedInteger(form.tarjetas_cantidad) || 0
+      fecha_registro: form.fecha_registro, // yyyy-mm-dd
+      hora_registro: form.hora_registro, // HH:MM
+      // IMPORTANT: enviar venta_total_registrada en snake_case y como número entero redondeado
+      venta_total_registrada: Math.round(Number(ventaTotalNum || 0)),
+      efectivo_en_caja: Math.round(Number(efectivoNum || 0)),
+      tarjetas: Math.round(Number(tarjetasNum || 0)),
+      tarjetas_cantidad: Math.round(Number(tarjetasCantidadNum || 0)),
+      convenios: Math.round(Number(conveniosNum || 0)),
+      convenios_cantidad: Math.round(Number(conveniosCantidadNum || 0)),
+      convenios_items: convenios_items.length ? convenios_items : undefined,
+      bonos_sodexo: Math.round(Number(bonosNum || 0)),
+      bonos_sodexo_cantidad: Math.round(Number(bonosCantidadNum || 0)),
+      pagos_internos: Math.round(Number(pagosInternosNum || 0)),
+      pagos_internos_cantidad: Math.round(
+        Number(pagosInternosCantidadNum || 0)
       ),
-      convenios: parseFormattedInteger(form.convenios) || 0,
-      convenios_cantidad: Math.round(
-        parseFormattedInteger(form.convenios_cantidad) || 0
-      ),
-      convenios_items,
-      bonosSodexo: parseFormattedInteger(form.bonos_sodexo) || 0,
-      bonosSodexo_cantidad: Math.round(
-        parseFormattedInteger(form.bonos_sodexo_cantidad) || 0
-      ),
-      pagosInternos: parseFormattedInteger(form.pagos_internos) || 0,
-      pagosInternos_cantidad: Math.round(
-        parseFormattedInteger(form.pagos_internos_cantidad) || 0
-      ),
-      cajero_nombre: form.cajero_nombre || null,
-      cajero_cedula: form.cajero_cedula || null,
-      observacion: form.observacion || null,
+      cajero_nombre: form.cajero_nombre || "",
+      cajero_cedula: form.cajero_cedula || "",
+      // enviar observacion como string (evita null)
+      observacion: form.observacion ?? "",
     };
 
     if (
       typeof form.sucursal_id === "number" &&
       !Number.isNaN(form.sucursal_id)
     ) {
-      payload.sucursal_id = Math.trunc(form.sucursal_id);
+      payloadSnakeOnly.sucursal_id = Math.trunc(form.sucursal_id);
     }
+
+    // DEBUG (temporal): ver en consola exactamente lo que vas a enviar
+    console.debug(
+      "[RegisterCajaPage] PATCH body (snake_case):",
+      payloadSnakeOnly
+    );
+
+    //log stringificado para ver detalles de escape
+    console.log(
+      "[RegisterCajaPage] PATCH request payload (stringified):",
+      JSON.stringify(payloadSnakeOnly)
+    );
 
     setSaving(true);
     try {
       const token = getToken();
+      let res: Response;
+
+      // LOG para debug: el body que vamos a enviar
+      console.log(
+        "[RegisterCajaPage] PATCH body (snake_case):",
+        payloadSnakeOnly
+      );
+
       if (editingId) {
-        const res = await fetch(`/api/caja/${editingId}`, {
+        res = await fetch(`/api/caja/${editingId}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(payloadSnakeOnly),
         });
-        const body = (await res.json().catch(() => null)) as ApiCajaResponse;
-        if (!res.ok) {
-          setError(
-            (body && (body.mensaje ?? "Error actualizando")) ||
-              `Error actualizando (status ${res.status})`
-          );
-          console.error("[RegisterCajaPage] PATCH error:", res.status, body);
-          return;
-        }
-        setMensaje(body.mensaje ?? "Registro actualizado");
       } else {
-        const res = await fetch("/api/caja/registrar", {
+        // fallback (si llegas a crear)
+        res = await fetch("/api/caja/registrar", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(payloadSnakeOnly),
         });
-        const body = (await res.json().catch(() => null)) as ApiCajaResponse;
-        if (!res.ok) {
-          setError(
-            (body && (body.mensaje ?? "Error creando")) ||
-              `Error creando (status ${res.status})`
-          );
-          console.error("[RegisterCajaPage] POST error:", res.status, body);
-          return;
-        }
-        setMensaje(body.mensaje ?? "Registro creado");
       }
 
+      // intentar parsear JSON o texto
+      let body: ApiCajaResponse | null = null;
+
+      try {
+        body = (await res.json().catch(() => null)) as ApiCajaResponse;
+      } catch {
+        // ignore
+      }
+
+      if (!res.ok) {
+        // mostrar detalle de respuesta para identificar validación
+        let serverMsg = body && (body.mensaje ?? body.mensaje);
+        if (!serverMsg) {
+          const txt = await res.text().catch(() => "");
+          serverMsg = txt || `Error (status ${res.status})`;
+        }
+        // LOG completo para debugging en consola (muy útil)
+        console.error(
+          `[RegisterCajaPage] ${editingId ? "PATCH" : "POST"} error:`,
+          res.status,
+          "response body:",
+          body,
+          "response text (fallback):",
+          await res.text().catch(() => "")
+        );
+        setError(String(serverMsg));
+        return;
+      }
+
+      setMensaje(
+        body?.mensaje ??
+          (editingId ? "Registro actualizado" : "Registro creado")
+      );
       setTimeout(() => setMensaje(null), 2000);
       if (role === "administrador") navigate("/admin/registros");
       else navigate("/cajero/registros");

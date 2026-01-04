@@ -11,10 +11,11 @@ import {
   obtenerTopDescuadres,
   exportarTopDescuadresExcel,
 } from "../controllers/caja.controller";
-import { authorize } from "../middlewares/auth.middleware";
+import { authenticate, authorize } from "../middlewares/auth.middleware";
 import { validateRequest } from "../middlewares/validate.middleware";
 import { updateCajaSchema } from "../validators/caja.validator";
 import { metricasDesgloseVentas } from "../controllers/caja.metricas.controller";
+import { actualizarCajaParcialService } from "../services/caja/actualizarCaja.service";
 
 const router = Router();
 
@@ -54,10 +55,12 @@ router.get("/:id", authorize("cajero", "administrador"), obtenerCajaPorId);
 
 router.patch(
   "/:id",
+  authenticate,
   authorize("administrador"),
   validateRequest(updateCajaSchema),
   actualizarCajaParcial
 );
+
 router.delete("/:id", authorize("administrador"), eliminarCaja);
 
 export default router;

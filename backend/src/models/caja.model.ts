@@ -244,7 +244,16 @@ export async function actualizarRegistroCajaTransaccional(
     if (sets.length > 0) {
       const sqlUpd = `UPDATE registro_caja SET ${sets.join(", ")} WHERE id = ?`;
       params.push(id);
+      console.log(
+        ">>> actualizarRegistroCajaTransaccional - SQL UPDATE:",
+        sqlUpd
+      );
+      console.log(">>> actualizarRegistroCajaTransaccional - PARAMS:", params);
       const [resUpd]: any = await conn.query(sqlUpd, params);
+      console.log(
+        ">>> actualizarRegistroCajaTransaccional - UPDATE RESULT:",
+        resUpd
+      );
     } else {
       const [rows]: any = await conn.query(
         `SELECT id FROM registro_caja WHERE id = ? LIMIT 1`,
@@ -255,7 +264,9 @@ export async function actualizarRegistroCajaTransaccional(
         return false;
       }
     }
-
+    console.log(
+      ">>> actualizarRegistroCajaTransaccional - NO HAY CAMPOS A ACTUALIZAR (sets.length === 0)"
+    );
     if (Array.isArray(conveniosItems)) {
       await conn.query(
         `DELETE FROM registro_convenios WHERE registro_caja_id = ?`,

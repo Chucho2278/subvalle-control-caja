@@ -21,6 +21,11 @@ dotenv.config();
 
 const app = express();
 
+app.use((req, _res, next) => {
+  console.log("BACKEND HIT:", req.method, req.originalUrl);
+  next();
+});
+
 // 🚨 DESACTIVAR ETAG
 app.set("etag", false);
 

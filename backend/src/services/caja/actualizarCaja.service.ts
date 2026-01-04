@@ -26,13 +26,25 @@ export const actualizarCajaParcialService = async (
 
   const cambios = (req.body ?? {}) as Record<string, unknown>;
 
+  // justo después de const cambios = (req.body ?? {}) as Record<string, unknown>;
+  console.log(">>> PATCH /api/caja/:id - req.user:", req.user);
+  console.log(
+    ">>> PATCH /api/caja/:id - req.body (raw):",
+    JSON.stringify(req.body)
+  );
+
   try {
     const original = await obtenerRegistroPorId(id);
 
     if (!original) {
       return res.status(404).json({ mensaje: "Registro no encontrado" });
     }
-
+    // temporal: colocar al inicio de actualizarCajaParcialService
+    console.log(">>> PATCH /api/caja/:id - req.user:", req.user);
+    console.log(
+      ">>> PATCH /api/caja/:id - req.body (raw):",
+      JSON.stringify(req.body)
+    );
     /* =========================
        MERGE DE DATOS
     ========================= */
@@ -156,6 +168,12 @@ export const actualizarCajaParcialService = async (
         cambios.hora_registro ?? cambios.horaRegistro ?? null
       ) ?? null;
 
+    // ... después de construir `merged` y antes del recálculo:
+    console.log(">>> PATCH /api/caja/:id - merged (valores usados):", {
+      ventaTotalRegistrada: merged.ventaTotalRegistrada,
+      efectivoEnCaja: merged.efectivoEnCaja,
+      // añade lo que quieras inspeccionar
+    });
     /* =========================
        RECÁLCULO
     ========================= */
@@ -244,6 +262,16 @@ export const actualizarCajaParcialService = async (
       }
     }
 
+    // ... después de `cambiosSnake`:
+    console.log(
+      ">>> PATCH /api/caja/:id - cambiosSnake (a aplicar):",
+      cambiosSnake
+    );
+    if (convenios_items_parsed)
+      console.log(
+        ">>> PATCH /api/caja/:id - convenios_items_parsed:",
+        convenios_items_parsed
+      );
     /* =========================
        ACTUALIZAR EN DB
     ========================= */
