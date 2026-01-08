@@ -1,3 +1,4 @@
+// backend/src/services/caja/exportarExcel.service.ts
 import { Response } from "express";
 import ExcelJS from "exceljs";
 
@@ -76,10 +77,11 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
    * FORMATO MONEDA
    ========================= */
   const MONEY_FORMAT = '"$"#,##0;[Red]-"$"#,##0';
+  const INT_FORMAT = "#,##0";
 
   try {
     /* ============================================================
-       RESUMEN POR TURNOS
+       RESUMEN POR TURNOS (sin cambios)
     ============================================================ */
     if (format === "resumen") {
       const sucursalId = sucursalIds.length === 1 ? sucursalIds[0] : null;
@@ -105,7 +107,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
         { header: "Bonos", key: "bonos", width: 16 },
         { header: "Cant. Bonos", key: "bonosCantidad", width: 18 },
         { header: "Pagos Internos", key: "pagosInternos", width: 18 },
-        { header: "Cant. Pagos Int.", key: "pagosInternosCantidad", width: 20 },
+        { header: "Cant. Pagos Int.", key: "pagosInternosQuantity", width: 20 },
         { header: "Dinero Registrado", key: "dineroRegistrado", width: 18 },
         { header: "Valor a Consignar", key: "valorConsignar", width: 18 },
         { header: "Diferencia", key: "diferencia", width: 16 },
@@ -145,7 +147,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
         "valorConsignar",
         "diferencia",
       ].forEach((key) => {
-        sheet.getColumn(key).numFmt = MONEY_FORMAT;
+        if (sheet.getColumn(key)) sheet.getColumn(key).numFmt = MONEY_FORMAT;
       });
 
       await addAudit(req, {
@@ -169,7 +171,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
     }
 
     /* ============================================================
-       DETALLE DE REGISTROS
+       DETALLE DE REGISTROS + DESGLOSE DINÁMICO DE CONVENIOS
     ============================================================ */
     const condiciones: string[] = [];
     const params: unknown[] = [];
@@ -204,44 +206,222 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
       unknown
     ];
 
+    // 1) obtener lista de convenios usados en el rango/filtrado (id + nombre)
+    const condicionesConvenios = [...condiciones];
+    const paramsConvenios = [...params];
+
+    // necesitamos unir con registro_convenios y agrupar por convenio para obtener nombres únicos
+    const sqlConvenios = `
+      SELECT DISTINCT rc.convenio_id AS convenio_id, rc.nombre_convenio AS nombre_convenio
+      FROM registro_convenios rc
+      JOIN registro_caja r ON rc.registro_caja_id = r.id
+      WHERE ${condicionesConvenios.join(" AND ")}
+      ORDER BY rc.nombre_convenio ASC
+    `;
+
+    const [conveniosListRaw] = (await pool.query(
+      sqlConvenios,
+      paramsConvenios
+    )) as [
+      Array<{ convenio_id?: number | null; nombre_convenio?: string | null }>,
+      unknown
+    ];
+
+    const conveniosList = Array.isArray(conveniosListRaw)
+      ? conveniosListRaw
+          .filter((c) => c.convenio_id != null)
+          .map((c) => ({
+            id: Number(c.convenio_id),
+            nombre: String(c.nombre_convenio ?? `conv_${c.convenio_id}`),
+          }))
+      : [];
+
+    // 2) obtener desglose por registro y convenio (sumas)
+    let conveniosPorRegistroMap: Record<
+      string,
+      Record<number, { cantidad: number; valor: number }>
+    > = {};
+
+    if (conveniosList.length > 0) {
+      const sqlConveniosPorRegistro = `
+        SELECT rc.registro_caja_id AS registro_id,
+               rc.convenio_id AS convenio_id,
+               rc.nombre_convenio AS nombre_convenio,
+               SUM(rc.cantidad) AS cantidad,
+               SUM(rc.valor) AS valor
+        FROM registro_convenios rc
+        JOIN registro_caja r ON rc.registro_caja_id = r.id
+        WHERE ${condicionesConvenios.join(" AND ")}
+        GROUP BY rc.registro_caja_id, rc.convenio_id, rc.nombre_convenio
+      `;
+
+      const [convRows] = (await pool.query(
+        sqlConveniosPorRegistro,
+        paramsConvenios
+      )) as [
+        Array<{
+          registro_id?: number;
+          convenio_id?: number;
+          nombre_convenio?: string;
+          cantidad?: number;
+          valor?: number;
+        }>,
+        unknown
+      ];
+
+      if (Array.isArray(convRows)) {
+        for (const cr of convRows) {
+          const regId = String(cr.registro_id ?? "");
+          if (!conveniosPorRegistroMap[regId])
+            conveniosPorRegistroMap[regId] = {};
+          conveniosPorRegistroMap[regId][Number(cr.convenio_id ?? 0)] = {
+            cantidad: Number(cr.cantidad ?? 0),
+            valor: Number(cr.valor ?? 0),
+          };
+        }
+      }
+    }
+
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Registros Caja");
 
-    if (rows.length > 0) {
-      sheet.columns = Object.keys(rows[0]).map((key) => ({
-        header: key.toUpperCase(),
-        key,
+    /* =========================
+       Construir columnas: columnas base + columnas dinámicas por convenio
+    ========================= */
+    const baseKeys =
+      rows.length > 0
+        ? Object.keys(rows[0])
+        : [
+            "id",
+            "restaurante",
+            "sucursal_id",
+            "turno",
+            "fecha_registro",
+            "venta_total_registrada",
+            "efectivo_en_caja",
+            "tarjetas",
+            "tarjetas_cantidad",
+            "convenios",
+            "convenios_cantidad",
+            "bonos_sodexo",
+            "bonos_sodexo_cantidad",
+            "pagos_internos",
+            "pagos_internos_cantidad",
+            "valor_consignar",
+            "dinero_registrado",
+            "diferencia",
+            "estado",
+            "observacion",
+            "cajero_nombre",
+            "cajero_cedula",
+            "creado_en",
+          ];
+
+    const columns: Array<{ header: string; key: string; width?: number }> =
+      baseKeys.map((k) => ({
+        header: k.toUpperCase(),
+        key: k,
         width: 18,
       }));
 
-      const MONEY_KEYS = [
-        "venta_total_registrada",
-        "efectivo_en_caja",
-        "tarjetas",
-        "convenios",
-        "bonos_sodexo",
-        "pagos_internos",
-        "dinero_registrado",
-        "valor_consignar",
-        "diferencia",
-      ];
+    // Añadir columnas por cada convenio: cantidad y valor
+    for (const conv of conveniosList) {
+      const safeName = String(conv.nombre ?? `Conv ${conv.id}`).trim();
+      // generar keys únicos y legibles
+      const cantKey = `convenio_${conv.id}_cantidad`;
+      const valKey = `convenio_${conv.id}_valor`;
 
-      rows.forEach((r) => {
-        const row: Record<string, unknown> = { ...r };
-
-        MONEY_KEYS.forEach((k) => {
-          if (k in row) row[k] = Number(row[k]) || 0;
-        });
-
-        sheet.addRow(row);
+      columns.push({
+        header: `${safeName} (Cant.)`,
+        key: cantKey,
+        width: 12,
       });
-
-      MONEY_KEYS.forEach((k) => {
-        if (sheet.getColumn(k)) {
-          sheet.getColumn(k).numFmt = MONEY_FORMAT;
-        }
+      columns.push({
+        header: `${safeName} (Valor)`,
+        key: valKey,
+        width: 14,
       });
     }
+
+    sheet.columns = columns;
+
+    /* =========================
+       Rellenar filas con valores incluidos los convenios
+    ========================= */
+    const MONEY_KEYS = [
+      "venta_total_registrada",
+      "efectivo_en_caja",
+      "tarjetas",
+      "convenios",
+      "bonos_sodexo",
+      "pagos_internos",
+      "dinero_registrado",
+      "valor_consignar",
+      "diferencia",
+    ];
+
+    for (const r of rows) {
+      const rowObj: Record<string, unknown> = { ...r };
+
+      // convertir keys monetarios a number
+      MONEY_KEYS.forEach((k) => {
+        if (k in rowObj) rowObj[k] = Number(rowObj[k]) || 0;
+      });
+
+      // rellenar convenios dinámicos para este registro
+      const regId = String(r.id ?? "");
+      const convForReg = conveniosPorRegistroMap[regId] ?? {};
+
+      for (const conv of conveniosList) {
+        const cantKey = `convenio_${conv.id}_cantidad`;
+        const valKey = `convenio_${conv.id}_valor`;
+
+        const entry = convForReg[conv.id];
+        rowObj[cantKey] = entry ? Number(entry.cantidad) || 0 : 0;
+        rowObj[valKey] = entry ? Number(entry.valor) || 0 : 0;
+      }
+
+      sheet.addRow(rowObj);
+    }
+
+    // aplicar formatos
+    // formato moneda para todas las columnas que terminan en '_valor' y para MONEY_KEYS
+    sheet.columns.forEach((col) => {
+      if (!col || typeof col.key !== "string") return;
+      const key = col.key as string;
+      if (MONEY_KEYS.includes(key)) {
+        col.numFmt = MONEY_FORMAT;
+      } else if (key.endsWith("_valor")) {
+        col.numFmt = MONEY_FORMAT;
+      } else if (
+        key.endsWith("_cantidad") ||
+        key.endsWith("_cant") ||
+        key === "tarjetas_cantidad" ||
+        key === "convenios_cantidad"
+      ) {
+        col.numFmt = INT_FORMAT;
+      }
+    });
+
+    await addAudit(req, {
+      accion: "exportar_excel_detalle",
+      recurso: "registro_caja",
+      recurso_id: null,
+      detalle: JSON.stringify({
+        from: fechaFrom,
+        to: fechaTo,
+        conveniosCount: conveniosList.length,
+      }),
+    }).catch(() => {});
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="registros-${fechaFrom}-a-${fechaTo}.xlsx"`
+    );
 
     await workbook.xlsx.write(res);
     res.end();

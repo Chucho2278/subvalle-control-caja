@@ -635,12 +635,6 @@ export default function RegisterCajaPage(): ReactElement {
       const token = getToken();
       let res: Response;
 
-      // LOG para debug: el body que vamos a enviar
-      console.log(
-        "[RegisterCajaPage] PATCH body (snake_case):",
-        payloadSnakeOnly
-      );
-
       if (editingId) {
         res = await fetch(`/api/caja/${editingId}`, {
           method: "PATCH",
@@ -652,7 +646,6 @@ export default function RegisterCajaPage(): ReactElement {
           body: JSON.stringify(payloadSnakeOnly),
         });
       } else {
-        // fallback (si llegas a crear)
         res = await fetch("/api/caja/registrar", {
           method: "POST",
           headers: {
@@ -666,20 +659,31 @@ export default function RegisterCajaPage(): ReactElement {
 
       // intentar parsear JSON o texto
       let body: ApiCajaResponse | null = null;
-
       try {
-        body = (await res.json().catch(() => null)) as ApiCajaResponse;
+        // res.json() puede lanzar; .catch(() => null) protege pero devolvemos null si no es JSON
+        body = (await res.json().catch(() => null)) as ApiCajaResponse | null;
       } catch {
         // ignore
       }
 
       if (!res.ok) {
-        // mostrar detalle de respuesta para identificar validación
-        let serverMsg = body && (body.mensaje ?? body.mensaje);
+        // evitar `any` — tratamos body como Record<string, unknown>
+        const b = (body ?? null) as Record<string, unknown> | null;
+        let serverMsg: string | undefined = undefined;
+
+        if (b) {
+          if (typeof b["mensaje"] === "string" && b["mensaje"] !== "") {
+            serverMsg = String(b["mensaje"]);
+          } else if (typeof b["message"] === "string" && b["message"] !== "") {
+            serverMsg = String(b["message"]);
+          }
+        }
+
         if (!serverMsg) {
           const txt = await res.text().catch(() => "");
           serverMsg = txt || `Error (status ${res.status})`;
         }
+
         // LOG completo para debugging en consola (muy útil)
         console.error(
           `[RegisterCajaPage] ${editingId ? "PATCH" : "POST"} error:`,
@@ -689,17 +693,28 @@ export default function RegisterCajaPage(): ReactElement {
           "response text (fallback):",
           await res.text().catch(() => "")
         );
+
         setError(String(serverMsg));
         return;
       }
 
-      setMensaje(
+      // ------- AQUI: mostrar mensaje de éxito y NAVEGAR DESPUÉS -------
+      const successMsg =
         body?.mensaje ??
-          (editingId ? "Registro actualizado" : "Registro creado")
-      );
-      setTimeout(() => setMensaje(null), 2000);
-      if (role === "administrador") navigate("/admin/registros");
-      else navigate("/cajero/registros");
+        (editingId
+          ? "Registro actualizado exitosamente ✅"
+          : "Registro creado exitosamente ✅");
+
+      setMensaje(successMsg);
+
+      // Mostrar mensaje breve, luego navegar. 1400ms es razonable.
+      setTimeout(() => {
+        setMensaje(null);
+        if (role === "administrador") navigate("/admin/registros");
+        else navigate("/cajero/registros");
+      }, 1400);
+
+      // ---------------------------------------------------------------
     } catch (err) {
       console.error("Error submit:", err);
       setError("Error de conexión al servidor");

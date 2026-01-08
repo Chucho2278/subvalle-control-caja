@@ -9,6 +9,7 @@ import {
 
 import { calcularCaja, DatosCaja } from "../../utils/calcularCaja";
 import { addAudit } from "../../utils/auditorias";
+import { diffChanges } from "../../utils/diffChanges";
 
 /*
   PATCH /api/caja/:id
@@ -136,38 +137,6 @@ export const actualizarCajaParcialService = async (
           : original.sucursal_id ?? null,
     } as const;
 
-    /* =========================
-       FECHA / HORA
-    ========================= */
-    const parseFechaHora = (fRaw: unknown, hRaw: unknown): Date | null => {
-      const f = fRaw ? String(fRaw) : "";
-      const h = hRaw ? String(hRaw) : "";
-
-      if (f && h) {
-        const secs = h.length === 5 ? `${h}:00` : h;
-        const iso = `${f}T${secs}`;
-        const d = new Date(iso);
-        if (!isNaN(d.getTime())) return d;
-
-        const d2 = new Date(`${f} ${secs}`);
-        if (!isNaN(d2.getTime())) return d2;
-        return null;
-      }
-
-      if (f) {
-        const d = new Date(`${f}T00:00:00`);
-        if (!isNaN(d.getTime())) return d;
-      }
-
-      return null;
-    };
-
-    const nuevaFechaRegistro =
-      parseFechaHora(
-        cambios.fecha_registro ?? cambios.fechaRegistro ?? null,
-        cambios.hora_registro ?? cambios.horaRegistro ?? null
-      ) ?? null;
-
     // ... después de construir `merged` y antes del recálculo:
     console.log(">>> PATCH /api/caja/:id - merged (valores usados):", {
       ventaTotalRegistrada: merged.ventaTotalRegistrada,
@@ -198,7 +167,6 @@ export const actualizarCajaParcialService = async (
     const cambiosSnake: Partial<Record<string, unknown>> = {
       restaurante: merged.restaurante,
       turno: merged.turno,
-      fecha_registro: nuevaFechaRegistro ?? original.fecha_registro ?? null,
       venta_total_registrada: merged.ventaTotalRegistrada,
       efectivo_en_caja: merged.efectivoEnCaja,
       tarjetas: merged.tarjetas,
@@ -292,6 +260,24 @@ export const actualizarCajaParcialService = async (
     /* =========================
        AUDITORÍA
     ========================= */
+    const changes = diffChanges(
+      original as Record<string, unknown>,
+      cambiosSnake
+    );
+
+    const detalleAudit = JSON.stringify({
+      type: "partial_update",
+      resource: "registro_caja",
+      changes,
+    });
+
+    await addAudit(req, {
+      accion: "actualizar_registro",
+      recurso: "registro_caja",
+      recurso_id: id,
+      detalle: detalleAudit,
+    });
+
     void addAudit(req, {
       accion: "actualizar_registro",
       recurso: "registro_caja",
