@@ -702,8 +702,8 @@ export default function RegisterCajaPage(): ReactElement {
       const successMsg =
         body?.mensaje ??
         (editingId
-          ? "Registro actualizado exitosamente ✅"
-          : "Registro creado exitosamente ✅");
+          ? "Registro actualizado exitosamente"
+          : "Registro creado exitosamente");
 
       setMensaje(successMsg);
 
