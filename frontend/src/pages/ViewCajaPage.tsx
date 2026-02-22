@@ -360,7 +360,7 @@ export default function ViewCajaPage(): ReactElement {
 
         <div style={{ height: 8 }} />
         <div className="rc-footer">
-          Gracias por utilizar el sistema creado por Jesús
+          Gracias por utilizar el sistema creado por Jesús Cañón
         </div>
       </div>
     </div>
