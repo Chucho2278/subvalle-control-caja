@@ -5,6 +5,7 @@ build/
 
 # Environment
 backend/.env
+frontend/.env
 backend/.env.local
 
 # Logs
