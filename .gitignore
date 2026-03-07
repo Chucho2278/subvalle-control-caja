@@ -4,8 +4,8 @@ dist/
 build/
 
 # Environment
-.env
-.env.local
+backend/.env
+backend/.env.local
 
 # Logs
 npm-debug.log*
