@@ -4,9 +4,12 @@ import { api } from "./index";
 
 export type LoginResponse = {
   token?: string;
-  rol?: string;
+  id?: number;
   nombre?: string;
-  mensaje?: string; // backend puede enviar { mensaje: "..." } en errores
+  rol?: string;
+  sucursal_id?: number | null;
+  restaurante?: string | null;
+  mensaje?: string;
 };
 
 export async function loginApi(email: string, contraseña: string) {

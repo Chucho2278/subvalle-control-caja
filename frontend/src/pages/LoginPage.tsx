@@ -8,19 +8,10 @@ import {
   getUser,
   parseJwt,
 } from "../utils/authService";
+import { loginApi } from "../api/auth";
 import type { UserMinimal } from "../auth/AuthContext";
 
 type LocationState = { from?: { pathname?: string } };
-
-interface LoginResponse {
-  token: string;
-  id?: number;
-  nombre?: string;
-  rol?: string;
-  sucursal_id?: number | null;
-  restaurante?: string | null; // si el backend lo envía
-  mensaje?: string;
-}
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -53,25 +44,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:3000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, contraseña }),
-      });
+      const data = await loginApi(email, contraseña);
 
-      const body: unknown = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        const maybeResp = body as Partial<LoginResponse>;
-        throw new Error(maybeResp.mensaje ?? "Credenciales inválidas");
-      }
-
-      const data = body as LoginResponse;
       if (!data?.token) {
         throw new Error("Respuesta inválida del servidor (falta token)");
       }
 
-      // Guardar token en sessionStorage
       saveToken(data.token);
 
       // Decodificar payload para extraer info si viene allí
@@ -100,27 +78,27 @@ export default function LoginPage() {
           typeof data.id === "number"
             ? data.id
             : typeof payload?.["userId"] === "number"
-            ? (payload["userId"] as number)
-            : null,
+              ? (payload["userId"] as number)
+              : null,
         nombre:
           typeof data.nombre === "string"
             ? data.nombre
             : typeof payload?.["nombre"] === "string"
-            ? (payload["nombre"] as string)
-            : null,
+              ? (payload["nombre"] as string)
+              : null,
         rol: normalizedRole ?? null,
         sucursal_id:
           typeof data.sucursal_id === "number"
             ? data.sucursal_id
             : typeof payload?.["sucursal_id"] === "number"
-            ? (payload["sucursal_id"] as number)
-            : null,
+              ? (payload["sucursal_id"] as number)
+              : null,
         restaurante:
           typeof data.restaurante === "string"
             ? data.restaurante
             : typeof payload?.["sucursal_nombre"] === "string"
-            ? (payload["sucursal_nombre"] as string)
-            : null,
+              ? (payload["sucursal_nombre"] as string)
+              : null,
       };
 
       // Guardamos usuario (tipo coincide con saveUser)
