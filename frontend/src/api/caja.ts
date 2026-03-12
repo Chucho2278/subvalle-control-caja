@@ -1,4 +1,3 @@
-// frontend/src/api/caja.ts
 import type { AxiosResponse } from "axios";
 import { api } from "./index";
 
@@ -22,6 +21,12 @@ export interface CajaInput {
   cajerNombre?: string;
   cajeroCedula?: string;
   observacion?: string;
+  conveniosItems?: Array<{
+    convenio_id?: number | null;
+    nombre_convenio?: string | null;
+    cantidad: number;
+    valor: number;
+  }>;
 }
 
 /* Tipo que usará la UI (camelCase) */
@@ -134,6 +139,12 @@ type CajaPayload = {
   cajero_nombre?: string;
   cajero_cedula?: string;
   observacion?: string | null;
+  convenios_items?: Array<{
+    convenio_id?: number | null;
+    nombre_convenio?: string | null;
+    cantidad: number;
+    valor: number;
+  }>;
 };
 
 type PartialCajaPayload = Partial<CajaPayload>;
@@ -161,6 +172,14 @@ function mapCajaInputToSnake(data: CajaInput): CajaPayload {
     cajero_nombre: data.cajerNombre,
     cajero_cedula: data.cajeroCedula,
     observacion: data.observacion ?? null,
+    ...(data.conveniosItems !== undefined && {
+      convenios_items: data.conveniosItems.map((it) => ({
+        convenio_id: it.convenio_id ?? null,
+        nombre_convenio: it.nombre_convenio ?? null,
+        cantidad: it.cantidad,
+        valor: it.valor,
+      })),
+    }),
   };
 }
 
@@ -200,6 +219,14 @@ function mapPartialCajaToSnake(
     out.cajero_cedula = partial.cajeroCedula;
   if (partial.observacion !== undefined)
     out.observacion = partial.observacion ?? null;
+  if (partial.conveniosItems !== undefined) {
+    out.convenios_items = partial.conveniosItems.map((it) => ({
+      convenio_id: it.convenio_id ?? null,
+      nombre_convenio: it.nombre_convenio ?? null,
+      cantidad: it.cantidad,
+      valor: it.valor,
+    }));
+  }
   return out;
 }
 
@@ -230,13 +257,11 @@ function mapRegistroToUI(r: RegistroCaja): RegistroCajaUI {
 
 /* ------------------ Funciones API (tipadas) ------------------ */
 
-/** POST /api/caja/registrar */
 export function postCaja(data: CajaInput) {
   const payload = mapCajaInputToSnake(data);
   return api.post("/caja/registrar", payload);
 }
 
-/** GET /api/caja (listado con filtros + paginación) -> devuelve registros ya mapeados (camelCase) */
 export async function listarCajas(
   params?: ListarCajasParams,
 ): Promise<ListarCajasResponseUI> {
@@ -253,7 +278,6 @@ export async function listarCajas(
   };
 }
 
-/** GET /api/caja/:id -> devuelve registro ya mapeado (camelCase) */
 export async function getCaja(
   id: number,
 ): Promise<{ registro: RegistroCajaUI }> {
@@ -261,18 +285,15 @@ export async function getCaja(
   return { registro: mapRegistroToUI(res.data.registro) };
 }
 
-/** PATCH /api/caja/:id */
 export function patchCaja(id: number, data: Partial<CajaInput>) {
   const payload = mapPartialCajaToSnake(data);
   return api.patch(`/caja/${id}`, payload);
 }
 
-/** DELETE /api/caja/:id */
 export function deleteCaja(id: number) {
   return api.delete(`/caja/${id}`);
 }
 
-/** GET /api/caja/resumen?fecha=YYYY-MM-DD */
 export function getResumen(fecha: string) {
   return api.get<{ resumen: ResumenTurno[]; total: TotalDiario }>(
     "/caja/resumen",
@@ -280,7 +301,6 @@ export function getResumen(fecha: string) {
   );
 }
 
-/** GET /api/caja/resumen/excel?fecha=YYYY-MM-DD => descarga el archivo en el navegador */
 export async function descargarExcelResumen(fecha: string) {
   const res = await api.get<Blob>("/caja/resumen/excel", {
     params: { fecha },
