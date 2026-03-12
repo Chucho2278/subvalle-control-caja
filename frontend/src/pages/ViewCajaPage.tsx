@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getToken } from "../utils/authService";
+import { api } from "../api/index";
 import "./ViewCajaPage.css";
 
 /** Tipos locales */
@@ -94,12 +94,12 @@ function normalizeRegistro(raw: unknown): Registro | null {
     cajero_nombre: toStringOrNull(get("cajero_nombre", "cajeroNombre")),
     cajero_cedula: toStringOrNull(get("cajero_cedula", "cajeroCedula")),
     venta_total_registrada: toNumberOrNull(
-      get("venta_total_registrada", "ventaTotalRegistrada")
+      get("venta_total_registrada", "ventaTotalRegistrada"),
     ),
     efectivo_en_caja: toNumberOrNull(get("efectivo_en_caja", "efectivoEnCaja")),
     tarjetas: toNumberOrNull(get("tarjetas")),
     tarjetas_cantidad: toIntOrNull(
-      get("tarjetas_cantidad", "tarjetasCantidad")
+      get("tarjetas_cantidad", "tarjetasCantidad"),
     ),
     convenios: toNumberOrNull(get("convenios")),
     convenios_cantidad:
@@ -115,7 +115,7 @@ function normalizeRegistro(raw: unknown): Registro | null {
       toIntOrNull(get("pagos_internos_cantidad", "pagos_internos_cantidad")),
     valor_consignar: toNumberOrNull(get("valor_consignar", "valorConsignar")),
     dinero_registrado: toNumberOrNull(
-      get("dinero_registrado", "dineroRegistrado")
+      get("dinero_registrado", "dineroRegistrado"),
     ),
     diferencia: toNumberOrNull(get("diferencia")),
     estado: toStringOrNull(get("estado")),
@@ -172,27 +172,8 @@ export default function ViewCajaPage(): ReactElement {
       setLoading(true);
       setError(null);
       try {
-        const token = getToken();
-        const res = await fetch(`http://localhost:3000/api/caja/${id}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as Record<
-            string,
-            unknown
-          >;
-          throw new Error(
-            String(body.mensaje ?? body.message ?? "Error al cargar registro")
-          );
-        }
-
-        const body = (await res
-          .json()
-          .catch(() => ({}))) as RegistroCajaResponse;
+        const res = await api.get<RegistroCajaResponse>(`/caja/${id}`);
+        const body = res.data;
 
         const regNormal = normalizeRegistro(body.registro ?? {});
         if (!regNormal) {

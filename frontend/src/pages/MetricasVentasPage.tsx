@@ -1,8 +1,7 @@
-// frontend/src/pages/MetricasVentasPage.tsx
 import { useEffect, useState } from "react";
 import type { MetricasVentas } from "../types/metricas.types";
-import { getToken } from "../utils/authService";
 import { useNavigate } from "react-router-dom";
+import { api } from "../api/index"; // <--- axios
 
 /* HELPERS */
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -52,36 +51,37 @@ export default function MetricasVentasPage() {
 
     try {
       const qs = new URLSearchParams({ from: fromArg, to: toArg });
-      qs.append("_", String(Date.now())); // cache-buster
+      qs.append("_", String(Date.now())); // cache‑buster
 
-      const token = getToken();
       console.log("[frontend] fetchMetricas =>", { from: fromArg, to: toArg });
 
-      const res = await fetch(
-        `/api/caja/metricas/desglose-ventas?${qs.toString()}`,
+      const res = await api.get(
+        `/caja/metricas/desglose-ventas?${qs.toString()}`,
         {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
+          // no es necesario especificar headers aquí
+          validateStatus: (s) => s < 500,
+        },
       );
 
-      console.log("[frontend] fetch http status:", res.status, res.statusText);
+      console.log(
+        "[frontend] http status:",
+        res.status,
+        res.statusText,
+        res.data,
+      );
 
-      if (!res.ok) {
-        const txt = await res.text();
-        try {
-          const errJson = JSON.parse(txt);
-          throw new Error(errJson.message || JSON.stringify(errJson));
-        } catch {
-          throw new Error(txt || `HTTP ${res.status}`);
+      if (res.status < 200 || res.status >= 300) {
+        let msg = `HTTP ${res.status}`;
+        if (res.data && typeof res.data === "object") {
+          const m = (res.data as Record<string, unknown>).message;
+          if (typeof m === "string" && m.trim() !== "") msg = m;
+        } else if (typeof res.data === "string") {
+          msg = res.data;
         }
+        throw new Error(msg);
       }
 
-      const body = await res.json();
+      const body = res.data;
       console.log("[frontend] body raw:", body);
 
       if (!isObject(body)) throw new Error("Respuesta inválida (no es objeto)");
@@ -99,7 +99,7 @@ export default function MetricasVentasPage() {
               nombre: String(
                 isObject(c) && typeof c.nombre === "string"
                   ? c.nombre
-                  : "Sin nombre"
+                  : "Sin nombre",
               ),
               total: toNumberSafe(isObject(c) ? c.total : 0),
             }))
@@ -219,7 +219,6 @@ export default function MetricasVentasPage() {
                   <td style={{ padding: "8px 4px" }}>{r.concepto}</td>
                   <td
                     style={{ textAlign: "right", padding: "8px 4px" }}
-                    // identificador rápido para inspección DOM
                     data-testid={
                       r.concepto === "Venta total"
                         ? "venta-total-valor"

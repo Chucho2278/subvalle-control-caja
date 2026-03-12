@@ -1,7 +1,8 @@
 // frontend/src/pages/AuditoriasPage.tsx
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getToken } from "../utils/authService";
+import { api } from "../api/index"; // <--- axios
 
 /* =======================
    TIPOS
@@ -262,16 +263,8 @@ export default function AuditoriasPage(): React.ReactElement {
 
   const loadUsuarios = async () => {
     try {
-      const token = getToken();
-      const res = await fetch("/api/usuarios", {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) return;
-      const body = (await res.json()) as { usuarios?: Usuario[] };
-      setUsuarios(body.usuarios ?? []);
+      const res = await api.get<{ usuarios?: Usuario[] }>("/usuarios");
+      setUsuarios(res.data.usuarios ?? []);
     } catch (err) {
       console.warn("No se pudieron cargar usuarios", err);
     }
@@ -279,16 +272,10 @@ export default function AuditoriasPage(): React.ReactElement {
 
   const loadAcciones = async () => {
     try {
-      const token = getToken();
-      const res = await fetch("/api/auditorias/acciones", {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) return;
-      const body = (await res.json()) as { acciones?: string[] };
-      setAcciones(body.acciones ?? []);
+      const res = await api.get<{ acciones?: string[] }>(
+        "/auditorias/acciones",
+      );
+      setAcciones(res.data.acciones ?? []);
     } catch (err) {
       console.warn("No se pudieron cargar acciones", err);
     }
@@ -298,7 +285,6 @@ export default function AuditoriasPage(): React.ReactElement {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const token = getToken();
       const params = new URLSearchParams();
       if (usuarioId) params.append("usuario_id", usuarioId);
       if (accion) params.append("accion", accion);
@@ -306,26 +292,17 @@ export default function AuditoriasPage(): React.ReactElement {
       params.append("page", String(pageToLoad));
       params.append("limit", String(limit));
 
-      const res = await fetch(`/api/auditorias?${params.toString()}`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || "Error cargando auditorías");
-      }
-
-      const body = (await res.json()) as AuditoriasResponse;
+      const res = await api.get<AuditoriasResponse>(
+        `/auditorias?${params.toString()}`,
+      );
+      const body = res.data;
       setAuditorias(body.auditorias ?? []);
       setTotal(body.total ?? 0);
       setPage(body.page ?? 1);
     } catch (err) {
       console.warn("Error al cargar auditorías:", err);
       setErrorMsg(
-        err instanceof Error ? err.message : "Error cargando auditorías"
+        err instanceof Error ? err.message : "Error cargando auditorías",
       );
       setAuditorias([]);
     } finally {
@@ -459,7 +436,7 @@ export default function AuditoriasPage(): React.ReactElement {
                       ? parsed!.changes!
                       : [];
                     const changes = rawChanges.filter((c) =>
-                      areDifferent(c.before, c.after)
+                      areDifferent(c.before, c.after),
                     );
 
                     return (
@@ -605,7 +582,7 @@ export default function AuditoriasPage(): React.ReactElement {
                         return JSON.stringify(
                           JSON.parse(selected.detalle),
                           null,
-                          2
+                          2,
                         );
                       } catch {
                         return selected.detalle;

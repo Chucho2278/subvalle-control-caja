@@ -5,6 +5,7 @@ import { api } from "./index";
 /* ---------- Tipos frontend (camelCase para inputs / UI) ---------- */
 export interface CajaInput {
   restaurante: string;
+  sucursal_id?: number | null;
   turno: "A" | "B" | "C" | "D";
   ventaTotalRegistrada: number;
   efectivoEnCaja: number;
@@ -16,6 +17,10 @@ export interface CajaInput {
   bonosSodexoCantidad: number;
   pagosInternos: number;
   pagosInternosCantidad: number;
+  fechaRegistro?: string;
+  horaRegistro?: string;
+  cajerNombre?: string;
+  cajeroCedula?: string;
   observacion?: string;
 }
 
@@ -112,6 +117,7 @@ export type ListarCajasResponseUI = {
 /* ---------- Payload types (snake_case) para enviar al backend ---------- */
 type CajaPayload = {
   restaurante: string;
+  sucursal_id?: number | null;
   turno: RegistroCaja["turno"];
   venta_total_registrada: number;
   efectivo_en_caja: number;
@@ -123,6 +129,10 @@ type CajaPayload = {
   bonos_sodexo_cantidad: number;
   pagos_internos: number;
   pagos_internos_cantidad: number;
+  fecha_registro?: string;
+  hora_registro?: string;
+  cajero_nombre?: string;
+  cajero_cedula?: string;
   observacion?: string | null;
 };
 
@@ -134,6 +144,7 @@ type PartialCajaPayload = Partial<CajaPayload>;
 function mapCajaInputToSnake(data: CajaInput): CajaPayload {
   return {
     restaurante: data.restaurante,
+    sucursal_id: data.sucursal_id ?? null,
     turno: data.turno,
     venta_total_registrada: data.ventaTotalRegistrada,
     efectivo_en_caja: data.efectivoEnCaja,
@@ -145,16 +156,22 @@ function mapCajaInputToSnake(data: CajaInput): CajaPayload {
     bonos_sodexo_cantidad: data.bonosSodexoCantidad,
     pagos_internos: data.pagosInternos,
     pagos_internos_cantidad: data.pagosInternosCantidad,
+    fecha_registro: data.fechaRegistro,
+    hora_registro: data.horaRegistro,
+    cajero_nombre: data.cajerNombre,
+    cajero_cedula: data.cajeroCedula,
     observacion: data.observacion ?? null,
   };
 }
 
 /** Mapea campos parciales (patch) */
 function mapPartialCajaToSnake(
-  partial: Partial<CajaInput>
+  partial: Partial<CajaInput>,
 ): PartialCajaPayload {
   const out: PartialCajaPayload = {};
   if (partial.restaurante !== undefined) out.restaurante = partial.restaurante;
+  if (partial.sucursal_id !== undefined)
+    out.sucursal_id = partial.sucursal_id ?? null;
   if (partial.turno !== undefined) out.turno = partial.turno;
   if (partial.ventaTotalRegistrada !== undefined)
     out.venta_total_registrada = partial.ventaTotalRegistrada;
@@ -173,6 +190,14 @@ function mapPartialCajaToSnake(
     out.pagos_internos = partial.pagosInternos;
   if (partial.pagosInternosCantidad !== undefined)
     out.pagos_internos_cantidad = partial.pagosInternosCantidad;
+  if (partial.fechaRegistro !== undefined)
+    out.fecha_registro = partial.fechaRegistro;
+  if (partial.horaRegistro !== undefined)
+    out.hora_registro = partial.horaRegistro;
+  if (partial.cajerNombre !== undefined)
+    out.cajero_nombre = partial.cajerNombre;
+  if (partial.cajeroCedula !== undefined)
+    out.cajero_cedula = partial.cajeroCedula;
   if (partial.observacion !== undefined)
     out.observacion = partial.observacion ?? null;
   return out;
@@ -213,7 +238,7 @@ export function postCaja(data: CajaInput) {
 
 /** GET /api/caja (listado con filtros + paginación) -> devuelve registros ya mapeados (camelCase) */
 export async function listarCajas(
-  params?: ListarCajasParams
+  params?: ListarCajasParams,
 ): Promise<ListarCajasResponseUI> {
   const res: AxiosResponse<ListarCajasResponseSnake> = await api.get("/caja", {
     params,
@@ -230,7 +255,7 @@ export async function listarCajas(
 
 /** GET /api/caja/:id -> devuelve registro ya mapeado (camelCase) */
 export async function getCaja(
-  id: number
+  id: number,
 ): Promise<{ registro: RegistroCajaUI }> {
   const res = await api.get<{ registro: RegistroCaja }>(`/caja/${id}`);
   return { registro: mapRegistroToUI(res.data.registro) };
@@ -251,7 +276,7 @@ export function deleteCaja(id: number) {
 export function getResumen(fecha: string) {
   return api.get<{ resumen: ResumenTurno[]; total: TotalDiario }>(
     "/caja/resumen",
-    { params: { fecha } }
+    { params: { fecha } },
   );
 }
 

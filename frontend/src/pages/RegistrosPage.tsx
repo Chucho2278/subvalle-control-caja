@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import CajeroMenu from "../components/CajeroMenu";
-import { getToken, getUser } from "../utils/authService";
+import { getUser } from "../utils/authService";
 import { useNavigate } from "react-router-dom";
+import { api } from "../api/index"; // <--- import axios
 
 /** Tipos mínimos para la UI */
 type RegistroUI = {
@@ -74,8 +75,8 @@ function parseSucursalesResponse(raw: unknown): SucursalOpt[] {
           typeof it.id === "number"
             ? it.id
             : typeof it.sucursal_id === "number"
-            ? it.sucursal_id
-            : Number((it as Record<string, unknown>).id ?? 0);
+              ? it.sucursal_id
+              : Number((it as Record<string, unknown>).id ?? 0);
         const nombre =
           extractString(it, ["nombre", "sucursal_nombre", "restaurante"]) ??
           String(id ?? "");
@@ -106,11 +107,6 @@ function formatDateYMD(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/**
- * Diferencia en meses enteros entre dos fechas YYYY-MM-DD.
- * Calcula meses completos: p.ej. 2025-01-15 -> 2025-04-14 = 2 meses (porque 14 < 15)
- * Devuelve Infinity si no puede parsear.
- */
 function monthsBetween(fromYmd: string, toYmd: string): number {
   try {
     const fParts = fromYmd.split("-").map((s) => Number(s));
@@ -119,11 +115,9 @@ function monthsBetween(fromYmd: string, toYmd: string): number {
     const f = new Date(fParts[0], fParts[1] - 1, fParts[2]);
     const t = new Date(tParts[0], tParts[1] - 1, tParts[2]);
     if (isNaN(f.getTime()) || isNaN(t.getTime())) return Infinity;
-    // si to < from -> devolver -1 (para que la validación de orden lo atrape antes)
     if (t.getTime() < f.getTime()) return -1;
     let months =
       (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth());
-    // si el día final es menor al día inicial, restar 1 mes (no cuenta mes completo)
     if (t.getDate() < f.getDate()) months -= 1;
     return months;
   } catch {
@@ -131,11 +125,6 @@ function monthsBetween(fromYmd: string, toYmd: string): number {
   }
 }
 
-/* -------------------- formato estado -------------------- */
-/**
- * Reemplaza ocurrencias numéricas dentro del texto por su versión con separador de miles 'es-CO'.
- * Ej: "caja corta por -10000" -> "caja corta por -10.000"
- */
 function formatEstadoText(estado?: string | null) {
   if (!estado) return "-";
   return estado.replace(/-?\d[\d.,]*/g, (numStr) => {
@@ -166,37 +155,31 @@ export default function RegistrosPage() {
 
   const navigate = useNavigate();
 
-  // Fechas por defecto: desde = ayer, hasta = hoy
   const today = new Date();
   const todayStr = formatDateYMD(today);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const yesterdayStr = formatDateYMD(yesterday);
 
-  // state de fechas: por defecto ayer -> hoy (pero NO ejecutamos búsqueda automática)
   const [fromDate, setFromDate] = useState<string>(yesterdayStr);
   const [toDate, setToDate] = useState<string>(todayStr);
-
-  // ahora soportamos múltiples turnos seleccionados
   const [selectedTurnos, setSelectedTurnos] = useState<string[]>([]);
 
   const [sucursalesOpts, setSucursalesOpts] = useState<SucursalOpt[]>([]);
   const [selectedSucursalIds, setSelectedSucursalIds] = useState<number[]>(
-    userRole === "cajero" && userSucursalId ? [userSucursalId] : []
+    userRole === "cajero" && userSucursalId ? [userSucursalId] : [],
   );
 
-  // estado para abrir/cerrar los dropdowns
   const [openSucursales, setOpenSucursales] = useState(false);
   const [openTurnos, setOpenTurnos] = useState(false);
 
   const [page, setPage] = useState<number>(1);
-  const [limit] = useState<number>(50); // <-- máximo 50 por página solicitado
+  const [limit] = useState<number>(50);
 
   const [registros, setRegistros] = useState<RegistroUI[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
-  // refs para cerrar dropdowns al hacer click fuera
   const sucDropdownRef = useRef<HTMLDivElement | null>(null);
   const turnoDropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -217,35 +200,22 @@ export default function RegistrosPage() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  // cargar sucursales
+  // cargar sucursales con axios
   useEffect(() => {
     (async () => {
       try {
-        const token = getToken();
-        const res = await fetch("/api/sucursal", {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-
-        if (!res.ok) {
-          setSucursalesOpts([]);
-          return;
-        }
-
-        const body = await res.json().catch(() => null);
+        const res = await api.get("/sucursal");
+        const body = res.data;
         const candidate: unknown =
           body && typeof body === "object"
             ? Array.isArray((body as Record<string, unknown>).sucursales)
               ? (body as Record<string, unknown>).sucursales
               : Array.isArray((body as Record<string, unknown>).data)
-              ? (body as Record<string, unknown>).data
-              : Array.isArray((body as Record<string, unknown>).rows)
-              ? (body as Record<string, unknown>).rows
-              : body
+                ? (body as Record<string, unknown>).data
+                : Array.isArray((body as Record<string, unknown>).rows)
+                  ? (body as Record<string, unknown>).rows
+                  : body
             : body;
-
         const parsed = parseSucursalesResponse(candidate);
         setSucursalesOpts(parsed);
       } catch {
@@ -254,7 +224,6 @@ export default function RegistrosPage() {
     })();
   }, []);
 
-  // si cajero y tiene sucursal_id, preseleccionar (NO ejecutar fetch aquí)
   useEffect(() => {
     if (
       userRole === "cajero" &&
@@ -266,20 +235,17 @@ export default function RegistrosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole, userSucursalId]);
 
-  // toggles sucursal seleccionada
   const toggleSucursal = (id: number) => {
     setSelectedSucursalIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
   const toggleTurno = (t: string) => {
     setSelectedTurnos((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
     );
   };
-
-  /* ---------------- Reglas de fechas (UX) ---------------- */
 
   const onChangeFromDate = (value: string) => {
     setFromDate(value);
@@ -289,25 +255,20 @@ export default function RegistrosPage() {
     setToDate(value);
   };
 
-  /* ---------------- Fetch registros ---------------- */
-
   const fetchRegistros = useCallback(
     async (pageArg: number = page) => {
-      // require both dates to query
       if (!fromDate || !toDate) {
         alert(
-          "Selecciona 'Desde' y 'Hasta' antes de buscar (ambas fechas requeridas)."
+          "Selecciona 'Desde' y 'Hasta' antes de buscar (ambas fechas requeridas).",
         );
         return;
       }
 
-      // validar orden
       if (fromDate > toDate) {
         alert("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'.");
         return;
       }
 
-      // validar rango máximo 3 meses (según criterio)
       const months = monthsBetween(fromDate, toDate);
       if (months === Infinity) {
         alert("Fechas inválidas. Verifica el formato.");
@@ -326,12 +287,10 @@ export default function RegistrosPage() {
         params.set("page", String(pageArg));
         params.set("limit", String(limit));
 
-        // Turnos
         if (selectedTurnos.length > 0) {
           for (const t of selectedTurnos) params.append("turno", t);
         }
 
-        // Sucursales
         const allSelected =
           sucursalesOpts.length > 0 &&
           selectedSucursalIds.length === sucursalesOpts.length;
@@ -344,23 +303,8 @@ export default function RegistrosPage() {
           }
         }
 
-        const token = getToken();
-        const res = await fetch(`/api/caja?${params.toString()}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          console.error("Error obteniendo registros:", res.status, txt);
-          throw new Error("Error al cargar registros (ver consola).");
-        }
-
-        const body = (await res.json().catch(() => ({}))) as unknown;
-
-        // extraer lista de registros de manera tolerante
+        const res = await api.get(`/caja?${params.toString()}`);
+        const body = (res.data as unknown) ?? {};
         let rawList: unknown[] = [];
         if (
           isObject(body) &&
@@ -407,7 +351,7 @@ export default function RegistrosPage() {
           const idNum =
             extractNumber(r, ["id", "identificacion", "_id", "ID"]) ??
             Number(
-              extractString(r, ["id", "identificacion", "_id", "ID"]) ?? 0
+              extractString(r, ["id", "identificacion", "_id", "ID"]) ?? 0,
             );
 
           return {
@@ -424,7 +368,6 @@ export default function RegistrosPage() {
 
         setRegistros(mapped);
 
-        // total
         let totalFromBody: number | null = null;
         if (isObject(body)) {
           const maybeTotal = extractNumber(body, [
@@ -452,7 +395,7 @@ export default function RegistrosPage() {
       userRole,
       userSucursalId,
       page,
-    ]
+    ],
   );
 
   const handleDescargar = () => {
@@ -460,12 +403,10 @@ export default function RegistrosPage() {
       alert("Selecciona desde y hasta para descargar.");
       return;
     }
-
     if (fromDate > toDate) {
       alert("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'.");
       return;
     }
-
     const months = monthsBetween(fromDate, toDate);
     if (months === Infinity) {
       alert("Fechas inválidas. Verifica el formato.");
@@ -479,11 +420,9 @@ export default function RegistrosPage() {
     const params = new URLSearchParams();
     params.set("from", fromDate);
     params.set("to", toDate);
-
     if (selectedTurnos.length > 0) {
       for (const t of selectedTurnos) params.append("turno", t);
     }
-
     const allSelected =
       sucursalesOpts.length > 0 &&
       selectedSucursalIds.length === sucursalesOpts.length;
@@ -496,18 +435,12 @@ export default function RegistrosPage() {
       }
     }
 
-    const token = getToken();
-    const url = `/api/caja/resumen/excel?${params.toString()}`; // backend actualizado para devolver exactamente los registros filtrados
-    fetch(url, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Error descargando Excel");
-        return r.blob();
+    api
+      .get(`/caja/resumen/excel?${params.toString()}`, {
+        responseType: "blob",
       })
-      .then((blob) => {
+      .then((r) => {
+        const blob = r.data as Blob;
         const a = document.createElement("a");
         const urlObj = window.URL.createObjectURL(blob);
         a.href = urlObj;
@@ -524,7 +457,6 @@ export default function RegistrosPage() {
       });
   };
 
-  // helpers UI para mostrar texto del select
   const labelTurnos =
     selectedTurnos.length === 0 ? "Todos" : selectedTurnos.join(", ");
   const labelSucursales =
@@ -532,10 +464,9 @@ export default function RegistrosPage() {
     selectedSucursalIds.length === sucursalesOpts.length
       ? "Todas"
       : selectedSucursalIds.length === 0
-      ? "Seleccionar sucursal(es)"
-      : `${selectedSucursalIds.length} seleccionada(s)`;
+        ? "Seleccionar sucursal(es)"
+        : `${selectedSucursalIds.length} seleccionada(s)`;
 
-  // acciones del dropdown: seleccionar todo / borrar selección
   const seleccionarTodoSucursales = () => {
     const ids = sucursalesOpts.map((s) => s.id);
     setSelectedSucursalIds(ids);
@@ -546,23 +477,14 @@ export default function RegistrosPage() {
     console.debug("Borrar selección sucursales");
   };
 
-  // Eliminar registro (solo admin)
   const handleEliminar = async (id: number) => {
     if (!confirm("¿Eliminar este registro? Esta acción no puede deshacerse."))
       return;
     try {
-      const token = getToken();
-      const res = await fetch(`/api/caja/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as unknown;
+      const res = await api.delete(`/caja/${id}`);
+      if (res.status < 200 || res.status >= 300) {
         let mensaje = `Error eliminando registro (status ${res.status})`;
+        const body = res.data as unknown;
         if (
           body &&
           typeof body === "object" &&
@@ -570,9 +492,6 @@ export default function RegistrosPage() {
         ) {
           const m = (body as Record<string, unknown>).mensaje;
           if (typeof m === "string" && m.trim() !== "") mensaje = m;
-        } else {
-          const txt = await res.text().catch(() => "");
-          if (txt) mensaje = txt;
         }
         console.error("Error eliminando registro:", res.status, mensaje);
         alert(mensaje);

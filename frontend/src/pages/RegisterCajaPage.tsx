@@ -1,19 +1,25 @@
-// frontend/src/pages/RegisterCajaPage.tsx
 import React, { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getToken, getUser } from "../utils/authService";
+import { getUser } from "../utils/authService";
+import { api } from "../api/index";
+import { postCaja, patchCaja, type CajaInput } from "../api/caja";
 import "./RegisterCajaPage.css";
 
 /* -------------------- Tipos -------------------- */
 type Turno = "" | "A" | "B" | "C" | "D";
 
+type ConvenioOption = {
+  id: number;
+  nombre: string;
+};
+
 interface FormState {
   restaurante: string;
   sucursal_id?: number | null;
   turno: Turno;
-  fecha_registro: string; // yyyy-mm-dd
-  hora_registro: string; // HH:MM
+  fecha_registro: string;
+  hora_registro: string;
   ventaTotalRegistrada: string;
   efectivoEnCaja: string;
   tarjetas: string;
@@ -29,7 +35,6 @@ interface FormState {
   observacion: string;
 }
 
-type ConvenioOption = { id: number; nombre: string };
 type ConvenioEntry = {
   convenio_id?: number | null;
   nombre_convenio?: string | null;
@@ -37,63 +42,33 @@ type ConvenioEntry = {
   valor: string;
 };
 
-type ApiCajaResponse = {
-  registro?: Record<string, unknown>;
-  convenios?: Array<Record<string, unknown>>;
-  mensaje?: string;
-};
+/* -------------------- Helpers -------------------- */
 
-/* -------------------- Helpers (pegar aquí) -------------------- */
-
-/**
- * formatIntegerDisplay
- * - recibe string con posible basura y devuelve string con separador de miles '.' (ej. "1234" -> "1.234")
- * - si input vacío devuelve ""
- */
 const formatIntegerDisplay = (input: string): string => {
   let s = String(input ?? "");
-  // quitar todo excepto dígitos
   s = s.replace(/\D+/g, "");
   if (s === "") return "";
-  // quitar ceros a la izquierda salvo si es solo "0"
   s = s.replace(/^0+(?=\d)/, "");
   if (s === "") s = "0";
   return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
-/**
- * sanitizeInteger
- * - deja solo dígitos
- */
 const sanitizeInteger = (value: string): string =>
   String(value ?? "").replace(/\D+/g, "");
 
-/**
- * handleNumericFocus: si valor === "0" -> lo deja vacío
- */
 const handleNumericFocus = (value: string, setter: (v: string) => void) => {
   if (value === "0") setter("");
 };
 
-/**
- * handleNumericBlurInteger:
- * - normaliza integer (quita caracteres no numéricos)
- * - si queda vacío pone "0"
- * - formatea con separador de miles
- */
 const handleNumericBlurInteger = (
   value: string,
-  setter: (v: string) => void
+  setter: (v: string) => void,
 ) => {
   const sanitized = sanitizeInteger(String(value ?? ""));
   const final = sanitized === "" ? "0" : sanitized;
   setter(formatIntegerDisplay(final));
 };
 
-/**
- * integerOnChangeFactory
- * - devuelve un onChange que formatea en tiempo real (miles)
- */
 const integerOnChangeFactory =
   (setter: (v: string) => void) =>
   (e: React.ChangeEvent<HTMLInputElement> | string) => {
@@ -103,10 +78,6 @@ const integerOnChangeFactory =
     setter(formatted);
   };
 
-/**
- * parseFormattedInteger
- * - convierte "1.234" -> 1234 (Number)
- */
 const parseFormattedInteger = (display: string): number => {
   if (!display && display !== "0") return 0;
   const cleaned = String(display).replace(/\./g, "").replace(",", ".");
@@ -114,10 +85,10 @@ const parseFormattedInteger = (display: string): number => {
   return Number.isFinite(n) ? Math.round(n) : 0;
 };
 
-/* -------------------- Helpers utilitarios del componente -------------------- */
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
+
 function extractString(obj: unknown, keys: string[]): string | null {
   if (!isObject(obj)) return null;
   for (const k of keys) {
@@ -127,6 +98,7 @@ function extractString(obj: unknown, keys: string[]): string | null {
   }
   return null;
 }
+
 function extractNumber(obj: unknown, keys: string[]): number | null {
   if (!isObject(obj)) return null;
   for (const k of keys) {
@@ -146,7 +118,6 @@ export default function RegisterCajaPage(): ReactElement {
   const { id: paramId } = useParams<{ id?: string }>();
   const editingId = paramId ? Number(paramId) : null;
 
-  // FECHA HOY (yyyy-mm-dd) y hora actual (HH:MM)
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -194,7 +165,7 @@ export default function RegisterCajaPage(): ReactElement {
       nombre_convenio: null,
       cantidad: "0",
       valor: "0",
-    }))
+    })),
   );
 
   const [sucursalesOpts, setSucursalesOpts] = useState<
@@ -210,20 +181,13 @@ export default function RegisterCajaPage(): ReactElement {
     // cargar convenios
     (async () => {
       try {
-        const token = getToken();
-        const res = await fetch("/api/convenios", {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (!res.ok) return;
-        const b = (await res.json().catch(() => null)) as unknown;
-        const candidate =
-          isObject(b) && Array.isArray(b.convenios)
-            ? b.convenios
-            : Array.isArray(b)
-            ? b
+        const res = await api.get<{
+          convenios?: Array<Record<string, unknown>>;
+        }>("/convenios");
+        const candidate = Array.isArray(res.data?.convenios)
+          ? res.data.convenios
+          : Array.isArray(res.data)
+            ? (res.data as unknown[])
             : [];
         if (Array.isArray(candidate)) {
           const mapped = candidate
@@ -234,7 +198,7 @@ export default function RegisterCajaPage(): ReactElement {
               return { id: Math.trunc(Number(id)), nombre };
             })
             .filter(
-              (x): x is ConvenioOption => !!x && typeof x.nombre === "string"
+              (x): x is ConvenioOption => !!x && typeof x.nombre === "string",
             );
           setConveniosOpts(mapped);
         }
@@ -246,23 +210,17 @@ export default function RegisterCajaPage(): ReactElement {
     // cargar sucursales
     (async () => {
       try {
-        const token = getToken();
-        const res = await fetch("/api/sucursales", {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (!res.ok) return;
-        const b = (await res.json().catch(() => null)) as unknown;
-        const candidate =
-          isObject(b) && Array.isArray(b.sucursales)
-            ? b.sucursales
-            : isObject(b) && Array.isArray(b.rows)
-            ? b.rows
-            : Array.isArray(b)
-            ? b
-            : [];
+        const res = await api.get<{
+          sucursales?: Array<Record<string, unknown>>;
+          rows?: Array<Record<string, unknown>>;
+        }>("/sucursales");
+        const candidate = Array.isArray(res.data?.sucursales)
+          ? res.data.sucursales
+          : Array.isArray(res.data?.rows)
+            ? res.data.rows
+            : Array.isArray(res.data)
+              ? (res.data as unknown[])
+              : [];
         if (Array.isArray(candidate)) {
           const mapped = candidate
             .map((s) => {
@@ -278,9 +236,8 @@ export default function RegisterCajaPage(): ReactElement {
             })
             .filter(
               (x): x is { id: number; nombre: string } =>
-                !!x && typeof x.nombre === "string" && x.nombre !== ""
+                !!x && typeof x.nombre === "string" && x.nombre !== "",
             );
-
           setSucursalesOpts(mapped);
 
           const userSucursalId =
@@ -310,21 +267,13 @@ export default function RegisterCajaPage(): ReactElement {
     setLoading(true);
     (async () => {
       try {
-        const token = getToken();
-        const res = await fetch(`/api/caja/${editingId}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new Error(`Error cargando registro: ${res.status} ${text}`);
-        }
-        const body = (await res.json().catch(() => ({}))) as ApiCajaResponse;
-        const reg = body.registro ?? {};
+        const res = await api.get<{
+          registro?: Record<string, unknown>;
+          convenios?: Array<Record<string, unknown>>;
+          mensaje?: string;
+        }>(`/caja/${editingId}`);
+        const reg = res.data?.registro ?? {};
 
-        // convert numeric values to formatted string (thousands) and quantities as integers formatted
         const formatNum = (n: number | null | undefined) =>
           n == null ? "0" : formatIntegerDisplay(String(Math.round(n)));
 
@@ -338,7 +287,7 @@ export default function RegisterCajaPage(): ReactElement {
           sucursal_id:
             typeof reg["sucursal_id"] === "number"
               ? (reg["sucursal_id"] as number)
-              : s.sucursal_id ?? null,
+              : (s.sucursal_id ?? null),
           turno: (extractString(reg, ["turno"]) ?? "") as Turno,
           fecha_registro:
             (reg["fecha_registro"]
@@ -356,51 +305,57 @@ export default function RegisterCajaPage(): ReactElement {
               "venta_total_registrada",
               "ventaTotal",
               "venta",
-            ]) ?? 0
+            ]) ?? 0,
           ),
           efectivoEnCaja: formatNum(
-            extractNumber(reg, ["efectivo_en_caja", "efectivo"]) ?? 0
+            extractNumber(reg, ["efectivo_en_caja", "efectivo"]) ?? 0,
           ),
           tarjetas: formatNum(extractNumber(reg, ["tarjetas"]) ?? 0),
           tarjetas_cantidad: formatNum(
-            extractNumber(reg, ["tarjetas_cantidad"]) ?? 0
+            extractNumber(reg, ["tarjetas_cantidad"]) ?? 0,
           ),
           convenios: formatNum(extractNumber(reg, ["convenios"]) ?? 0),
           convenios_cantidad: formatNum(
-            extractNumber(reg, ["convenios_cantidad"]) ?? 0
+            extractNumber(reg, ["convenios_cantidad"]) ?? 0,
           ),
           bonos_sodexo: formatNum(extractNumber(reg, ["bonos_sodexo"]) ?? 0),
           bonos_sodexo_cantidad: formatNum(
-            extractNumber(reg, ["bonos_sodexo_cantidad"]) ?? 0
+            extractNumber(reg, ["bonos_sodexo_cantidad"]) ?? 0,
           ),
           pagos_internos: formatNum(
-            extractNumber(reg, ["pagos_internos"]) ?? 0
+            extractNumber(reg, ["pagos_internos"]) ?? 0,
           ),
           pagos_internos_cantidad: formatNum(
-            extractNumber(reg, ["pagos_internos_cantidad"]) ?? 0
+            extractNumber(reg, ["pagos_internos_cantidad"]) ?? 0,
           ),
           cajero_nombre: String(reg["cajero_nombre"] ?? s.cajero_nombre),
           cajero_cedula: String(reg["cajero_cedula"] ?? s.cajero_cedula),
           observacion: String(reg["observacion"] ?? s.observacion ?? ""),
         }));
 
-        // convenios asociados
-        const convs = Array.isArray(body.convenios) ? body.convenios : [];
+        const convs = Array.isArray(res.data?.convenios)
+          ? res.data.convenios
+          : [];
         if (Array.isArray(convs) && convs.length > 0) {
           const mapped = convs.map((c) => ({
             convenio_id:
-              typeof c["convenio_id"] === "number"
-                ? (c["convenio_id"] as number)
+              typeof c === "object" && c !== null && "convenio_id" in c
+                ? ((c as { convenio_id?: number | null }).convenio_id ?? null)
                 : null,
             nombre_convenio:
-              extractString(c, ["nombre_convenio"]) ??
-              extractString(c, ["nombre"]) ??
-              null,
-            cantidad: formatIntegerDisplay(
-              String(extractNumber(c, ["cantidad"]) ?? 0)
+              typeof c === "object" && c !== null && "nombre_convenio" in c
+                ? ((c as { nombre_convenio?: string | null }).nombre_convenio ??
+                  null)
+                : null,
+            cantidad: String(
+              typeof c === "object" && c !== null && "cantidad" in c
+                ? ((c as { cantidad?: number | string }).cantidad ?? 0)
+                : 0,
             ),
-            valor: formatIntegerDisplay(
-              String(Math.round(extractNumber(c, ["valor"]) ?? 0))
+            valor: String(
+              typeof c === "object" && c !== null && "valor" in c
+                ? ((c as { valor?: number | string }).valor ?? 0)
+                : 0,
             ),
           })) as ConvenioEntry[];
           setConvenioEntries(mapped);
@@ -428,9 +383,10 @@ export default function RegisterCajaPage(): ReactElement {
               cantidad: "0",
               valor: "0",
             },
-          ]
+          ],
     );
   };
+
   const removeConvenioEntry = (index: number) => {
     setConvenioEntries((prev) => {
       if (prev.length <= 1) return prev;
@@ -439,15 +395,17 @@ export default function RegisterCajaPage(): ReactElement {
       return copy;
     });
   };
+
   const handleEntryChange = (
     index: number,
     field: keyof ConvenioEntry,
-    value: string
+    value: string,
   ) => {
     setConvenioEntries((prev) =>
-      prev.map((it, i) => (i === index ? { ...it, [field]: value } : it))
+      prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)),
     );
   };
+
   const handleEntrySelect = (index: number, convenioIdStr: string) => {
     const id = convenioIdStr ? Number(convenioIdStr) : null;
     const found = conveniosOpts.find((c) => c.id === id);
@@ -459,14 +417,13 @@ export default function RegisterCajaPage(): ReactElement {
               convenio_id: id ?? null,
               nombre_convenio: found ? found.nombre : it.nombre_convenio,
             }
-          : it
-      )
+          : it,
+      ),
     );
   };
 
   /* ---------- Recalcular totales de convenios en tiempo real ---------- */
   useEffect(() => {
-    // suma cantidades y valores de convenioEntries y los pone en form (se almacenan formateados)
     const totalCantidad = convenioEntries.reduce((acc, it) => {
       const n =
         parseInt(String(it.cantidad).replace(/\./g, "").replace(",", ".")) || 0;
@@ -478,12 +435,11 @@ export default function RegisterCajaPage(): ReactElement {
       return acc + Math.round(v);
     }, 0);
 
-    // actualizamos los campos readOnly de form (formateados con miles)
     setForm((s) => ({
       ...s,
       convenios: formatIntegerDisplay(String(Math.round(totalValor))),
       convenios_cantidad: formatIntegerDisplay(
-        String(Math.round(totalCantidad))
+        String(Math.round(totalCantidad)),
       ),
     }));
   }, [convenioEntries]);
@@ -492,11 +448,11 @@ export default function RegisterCajaPage(): ReactElement {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    >,
   ) => {
     const name = e.target.name as keyof FormState;
     const value = e.target.value;
-    setForm((s) => ({ ...s, [name]: value } as FormState));
+    setForm((s) => ({ ...s, [name]: value }) as FormState);
   };
 
   const handleSucursalSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -520,7 +476,6 @@ export default function RegisterCajaPage(): ReactElement {
     setError(null);
     setMensaje(null);
 
-    // validaciones simples (igual que tenías)
     if (!form.turno) {
       setError("Selecciona un turno");
       return;
@@ -535,24 +490,23 @@ export default function RegisterCajaPage(): ReactElement {
     }
     if (role !== "administrador" && (!form.restaurante || !form.sucursal_id)) {
       setError(
-        "Restaurante/sucursal no definido para el cajero (contacte al admin)"
+        "Restaurante/sucursal no definido para el cajero (contacte al admin)",
       );
       return;
     }
 
-    // preparar convenios_items (parsear valores formateados)
     const convenios_items = convenioEntries
       .map((it) => {
         const cantidad = Math.max(
           0,
           Math.round(
             parseInt(
-              String(it.cantidad).replace(/\./g, "").replace(",", ".")
-            ) || 0
-          )
+              String(it.cantidad).replace(/\./g, "").replace(",", "."),
+            ) || 0,
+          ),
         );
         const valor = Math.round(
-          parseInt(String(it.valor).replace(/\./g, "").replace(",", ".")) || 0
+          parseInt(String(it.valor).replace(/\./g, "").replace(",", ".")) || 0,
         );
         return {
           convenio_id: it.convenio_id ?? null,
@@ -566,18 +520,14 @@ export default function RegisterCajaPage(): ReactElement {
           it.cantidad > 0 ||
           it.valor > 0 ||
           it.convenio_id !== null ||
-          it.nombre_convenio
+          it.nombre_convenio,
       );
 
-    // parsear/normalizar números
     const ventaTotalNum = parseFormattedInteger(form.ventaTotalRegistrada) || 0;
     const efectivoNum = parseFormattedInteger(form.efectivoEnCaja) || 0;
     const tarjetasNum = parseFormattedInteger(form.tarjetas) || 0;
     const tarjetasCantidadNum =
       Math.round(parseFormattedInteger(form.tarjetas_cantidad) || 0) || 0;
-    const conveniosNum = parseFormattedInteger(form.convenios) || 0;
-    const conveniosCantidadNum =
-      Math.round(parseFormattedInteger(form.convenios_cantidad) || 0) || 0;
     const bonosNum = parseFormattedInteger(form.bonos_sodexo) || 0;
     const bonosCantidadNum =
       Math.round(parseFormattedInteger(form.bonos_sodexo_cantidad) || 0) || 0;
@@ -585,146 +535,60 @@ export default function RegisterCajaPage(): ReactElement {
     const pagosInternosCantidadNum =
       Math.round(parseFormattedInteger(form.pagos_internos_cantidad) || 0) || 0;
 
-    // PAYLOAD en snake_case (solo este)
-    const payloadSnakeOnly: Record<string, unknown> = {
+    const cajaInput: CajaInput = {
       restaurante: form.restaurante,
-      turno: form.turno,
-      fecha_registro: form.fecha_registro, // yyyy-mm-dd
-      hora_registro: form.hora_registro, // HH:MM
-      // IMPORTANT: enviar venta_total_registrada en snake_case y como número entero redondeado
-      venta_total_registrada: Math.round(Number(ventaTotalNum || 0)),
-      efectivo_en_caja: Math.round(Number(efectivoNum || 0)),
+      sucursal_id: form.sucursal_id,
+      turno: form.turno as "A" | "B" | "C" | "D",
+      fechaRegistro: form.fecha_registro,
+      horaRegistro: form.hora_registro,
+      ventaTotalRegistrada: Math.round(Number(ventaTotalNum || 0)),
+      efectivoEnCaja: Math.round(Number(efectivoNum || 0)),
       tarjetas: Math.round(Number(tarjetasNum || 0)),
-      tarjetas_cantidad: Math.round(Number(tarjetasCantidadNum || 0)),
-      convenios: Math.round(Number(conveniosNum || 0)),
-      convenios_cantidad: Math.round(Number(conveniosCantidadNum || 0)),
-      convenios_items: convenios_items.length ? convenios_items : undefined,
-      bonos_sodexo: Math.round(Number(bonosNum || 0)),
-      bonos_sodexo_cantidad: Math.round(Number(bonosCantidadNum || 0)),
-      pagos_internos: Math.round(Number(pagosInternosNum || 0)),
-      pagos_internos_cantidad: Math.round(
-        Number(pagosInternosCantidadNum || 0)
+      tarjetasCantidad: Math.round(Number(tarjetasCantidadNum || 0)),
+      convenios: Math.round(
+        convenios_items.reduce((acc, it) => acc + it.valor, 0),
       ),
-      cajero_nombre: form.cajero_nombre || "",
-      cajero_cedula: form.cajero_cedula || "",
-      // enviar observacion como string (evita null)
+      conveniosCantidad: Math.round(
+        convenios_items.reduce((acc, it) => acc + it.cantidad, 0),
+      ),
+      bonosSodexo: Math.round(Number(bonosNum || 0)),
+      bonosSodexoCantidad: Math.round(Number(bonosCantidadNum || 0)),
+      pagosInternos: Math.round(Number(pagosInternosNum || 0)),
+      pagosInternosCantidad: Math.round(Number(pagosInternosCantidadNum || 0)),
+      cajerNombre: form.cajero_nombre || "",
+      cajeroCedula: form.cajero_cedula || "",
       observacion: form.observacion ?? "",
     };
 
-    if (
-      typeof form.sucursal_id === "number" &&
-      !Number.isNaN(form.sucursal_id)
-    ) {
-      payloadSnakeOnly.sucursal_id = Math.trunc(form.sucursal_id);
-    }
-
-    // DEBUG (temporal): ver en consola exactamente lo que vas a enviar
-    console.debug(
-      "[RegisterCajaPage] PATCH body (snake_case):",
-      payloadSnakeOnly
-    );
-
-    //log stringificado para ver detalles de escape
-    console.log(
-      "[RegisterCajaPage] PATCH request payload (stringified):",
-      JSON.stringify(payloadSnakeOnly)
-    );
-
     setSaving(true);
     try {
-      const token = getToken();
-      let res: Response;
-
       if (editingId) {
-        res = await fetch(`/api/caja/${editingId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payloadSnakeOnly),
-        });
+        const res = await patchCaja(editingId, cajaInput);
+        const successMsg =
+          res.data?.mensaje ?? "Registro actualizado exitosamente";
+        setMensaje(successMsg);
       } else {
-        res = await fetch("/api/caja/registrar", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payloadSnakeOnly),
-        });
+        const res = await postCaja(cajaInput);
+        const successMsg = res.data?.mensaje ?? "Registro creado exitosamente";
+        setMensaje(successMsg);
       }
 
-      // intentar parsear JSON o texto
-      let body: ApiCajaResponse | null = null;
-      try {
-        // res.json() puede lanzar; .catch(() => null) protege pero devolvemos null si no es JSON
-        body = (await res.json().catch(() => null)) as ApiCajaResponse | null;
-      } catch {
-        // ignore
-      }
-
-      if (!res.ok) {
-        // evitar `any` — tratamos body como Record<string, unknown>
-        const b = (body ?? null) as Record<string, unknown> | null;
-        let serverMsg: string | undefined = undefined;
-
-        if (b) {
-          if (typeof b["mensaje"] === "string" && b["mensaje"] !== "") {
-            serverMsg = String(b["mensaje"]);
-          } else if (typeof b["message"] === "string" && b["message"] !== "") {
-            serverMsg = String(b["message"]);
-          }
-        }
-
-        if (!serverMsg) {
-          const txt = await res.text().catch(() => "");
-          serverMsg = txt || `Error (status ${res.status})`;
-        }
-
-        // LOG completo para debugging en consola (muy útil)
-        console.error(
-          `[RegisterCajaPage] ${editingId ? "PATCH" : "POST"} error:`,
-          res.status,
-          "response body:",
-          body,
-          "response text (fallback):",
-          await res.text().catch(() => "")
-        );
-
-        setError(String(serverMsg));
-        return;
-      }
-
-      // ------- AQUI: mostrar mensaje de éxito y NAVEGAR DESPUÉS -------
-      const successMsg =
-        body?.mensaje ??
-        (editingId
-          ? "Registro actualizado exitosamente"
-          : "Registro creado exitosamente");
-
-      setMensaje(successMsg);
-
-      // Mostrar mensaje breve, luego navegar. 1400ms es razonable.
       setTimeout(() => {
         setMensaje(null);
         if (role === "administrador") navigate("/admin/registros");
         else navigate("/cajero/registros");
       }, 1400);
-
-      // ---------------------------------------------------------------
     } catch (err) {
       console.error("Error submit:", err);
-      setError("Error de conexión al servidor");
+      setError(
+        err instanceof Error ? err.message : "Error de conexión al servidor",
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  /* ---------- RENDERS ---------- */
-
+  /* ---------- RENDER ---------- */
   return (
     <div className="rcp-container">
       <h1 className="rcp-title">
@@ -833,16 +697,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="ventaTotalRegistrada"
                 value={form.ventaTotalRegistrada}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, ventaTotalRegistrada: v }))
+                  setForm((s) => ({ ...s, ventaTotalRegistrada: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.ventaTotalRegistrada, (v) =>
-                    setForm((s) => ({ ...s, ventaTotalRegistrada: v }))
+                    setForm((s) => ({ ...s, ventaTotalRegistrada: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.ventaTotalRegistrada, (v) =>
-                    setForm((s) => ({ ...s, ventaTotalRegistrada: v }))
+                    setForm((s) => ({ ...s, ventaTotalRegistrada: v })),
                   )
                 }
                 required
@@ -856,16 +720,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="efectivoEnCaja"
                 value={form.efectivoEnCaja}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, efectivoEnCaja: v }))
+                  setForm((s) => ({ ...s, efectivoEnCaja: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.efectivoEnCaja, (v) =>
-                    setForm((s) => ({ ...s, efectivoEnCaja: v }))
+                    setForm((s) => ({ ...s, efectivoEnCaja: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.efectivoEnCaja, (v) =>
-                    setForm((s) => ({ ...s, efectivoEnCaja: v }))
+                    setForm((s) => ({ ...s, efectivoEnCaja: v })),
                   )
                 }
                 inputMode="numeric"
@@ -878,16 +742,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="tarjetas"
                 value={form.tarjetas}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, tarjetas: v }))
+                  setForm((s) => ({ ...s, tarjetas: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.tarjetas, (v) =>
-                    setForm((s) => ({ ...s, tarjetas: v }))
+                    setForm((s) => ({ ...s, tarjetas: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.tarjetas, (v) =>
-                    setForm((s) => ({ ...s, tarjetas: v }))
+                    setForm((s) => ({ ...s, tarjetas: v })),
                   )
                 }
                 inputMode="numeric"
@@ -900,16 +764,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="tarjetas_cantidad"
                 value={form.tarjetas_cantidad}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, tarjetas_cantidad: v }))
+                  setForm((s) => ({ ...s, tarjetas_cantidad: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.tarjetas_cantidad, (v) =>
-                    setForm((s) => ({ ...s, tarjetas_cantidad: v }))
+                    setForm((s) => ({ ...s, tarjetas_cantidad: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.tarjetas_cantidad, (v) =>
-                    setForm((s) => ({ ...s, tarjetas_cantidad: v }))
+                    setForm((s) => ({ ...s, tarjetas_cantidad: v })),
                   )
                 }
                 inputMode="numeric"
@@ -942,16 +806,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="bonos_sodexo"
                 value={form.bonos_sodexo}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, bonos_sodexo: v }))
+                  setForm((s) => ({ ...s, bonos_sodexo: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.bonos_sodexo, (v) =>
-                    setForm((s) => ({ ...s, bonos_sodexo: v }))
+                    setForm((s) => ({ ...s, bonos_sodexo: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.bonos_sodexo, (v) =>
-                    setForm((s) => ({ ...s, bonos_sodexo: v }))
+                    setForm((s) => ({ ...s, bonos_sodexo: v })),
                   )
                 }
                 inputMode="numeric"
@@ -964,16 +828,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="bonos_sodexo_cantidad"
                 value={form.bonos_sodexo_cantidad}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, bonos_sodexo_cantidad: v }))
+                  setForm((s) => ({ ...s, bonos_sodexo_cantidad: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.bonos_sodexo_cantidad, (v) =>
-                    setForm((s) => ({ ...s, bonos_sodexo_cantidad: v }))
+                    setForm((s) => ({ ...s, bonos_sodexo_cantidad: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.bonos_sodexo_cantidad, (v) =>
-                    setForm((s) => ({ ...s, bonos_sodexo_cantidad: v }))
+                    setForm((s) => ({ ...s, bonos_sodexo_cantidad: v })),
                   )
                 }
                 inputMode="numeric"
@@ -1014,15 +878,15 @@ export default function RegisterCajaPage(): ReactElement {
                         idx,
                         "cantidad",
                         formatIntegerDisplay(
-                          String(sanitizeInteger(e.target.value))
-                        )
+                          String(sanitizeInteger(e.target.value)),
+                        ),
                       )
                     }
                     onFocus={() =>
                       handleEntryChange(
                         idx,
                         "cantidad",
-                        entry.cantidad === "0" ? "" : entry.cantidad
+                        entry.cantidad === "0" ? "" : entry.cantidad,
                       )
                     }
                     onBlur={() =>
@@ -1030,8 +894,8 @@ export default function RegisterCajaPage(): ReactElement {
                         idx,
                         "cantidad",
                         formatIntegerDisplay(
-                          String(sanitizeInteger(entry.cantidad || "")) || "0"
-                        )
+                          String(sanitizeInteger(entry.cantidad || "")) || "0",
+                        ),
                       )
                     }
                     inputMode="numeric"
@@ -1048,15 +912,15 @@ export default function RegisterCajaPage(): ReactElement {
                         idx,
                         "valor",
                         formatIntegerDisplay(
-                          String(sanitizeInteger(e.target.value))
-                        )
+                          String(sanitizeInteger(e.target.value)),
+                        ),
                       )
                     }
                     onFocus={() =>
                       handleEntryChange(
                         idx,
                         "valor",
-                        entry.valor === "0" ? "" : entry.valor
+                        entry.valor === "0" ? "" : entry.valor,
                       )
                     }
                     onBlur={() =>
@@ -1064,8 +928,8 @@ export default function RegisterCajaPage(): ReactElement {
                         idx,
                         "valor",
                         formatIntegerDisplay(
-                          String(sanitizeInteger(entry.valor || "")) || "0"
-                        )
+                          String(sanitizeInteger(entry.valor || "")) || "0",
+                        ),
                       )
                     }
                     inputMode="numeric"
@@ -1105,16 +969,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="pagos_internos"
                 value={form.pagos_internos}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, pagos_internos: v }))
+                  setForm((s) => ({ ...s, pagos_internos: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.pagos_internos, (v) =>
-                    setForm((s) => ({ ...s, pagos_internos: v }))
+                    setForm((s) => ({ ...s, pagos_internos: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.pagos_internos, (v) =>
-                    setForm((s) => ({ ...s, pagos_internos: v }))
+                    setForm((s) => ({ ...s, pagos_internos: v })),
                   )
                 }
                 inputMode="numeric"
@@ -1127,16 +991,16 @@ export default function RegisterCajaPage(): ReactElement {
                 name="pagos_internos_cantidad"
                 value={form.pagos_internos_cantidad}
                 onChange={integerOnChangeFactory((v) =>
-                  setForm((s) => ({ ...s, pagos_internos_cantidad: v }))
+                  setForm((s) => ({ ...s, pagos_internos_cantidad: v })),
                 )}
                 onFocus={() =>
                   handleNumericFocus(form.pagos_internos_cantidad, (v) =>
-                    setForm((s) => ({ ...s, pagos_internos_cantidad: v }))
+                    setForm((s) => ({ ...s, pagos_internos_cantidad: v })),
                   )
                 }
                 onBlur={() =>
                   handleNumericBlurInteger(form.pagos_internos_cantidad, (v) =>
-                    setForm((s) => ({ ...s, pagos_internos_cantidad: v }))
+                    setForm((s) => ({ ...s, pagos_internos_cantidad: v })),
                   )
                 }
                 inputMode="numeric"
@@ -1169,8 +1033,8 @@ export default function RegisterCajaPage(): ReactElement {
             {saving
               ? "Guardando..."
               : editingId
-              ? "Actualizar registro"
-              : "Guardar registro"}
+                ? "Actualizar registro"
+                : "Guardar registro"}
           </button>
 
           <button

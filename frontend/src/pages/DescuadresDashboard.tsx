@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { useNavigate } from "react-router-dom";
-import { getToken } from "../utils/authService";
+import { api } from "../api/index"; // <--- axios reemplaza getToken
 
 /** Tipos */
 type TopRow = {
@@ -65,7 +65,7 @@ const parseSucursales = (body: unknown): Sucursal[] => {
       if (!isObject(r)) return null;
       const id = Math.trunc(toNumberSafe(r.id ?? r.sucursal_id));
       const nombre = toStringSafe(
-        r.nombre ?? r.sucursal_nombre ?? r.restaurante
+        r.nombre ?? r.sucursal_nombre ?? r.restaurante,
       );
       if (!id || !nombre) return null;
       return { id, nombre };
@@ -100,22 +100,13 @@ export default function DescuadresDashboard(): ReactElement {
     // cargar sucursales (si existe endpoint)
     (async () => {
       try {
-        const token = getToken();
-        const res = await fetch("/api/sucursales", {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (!res.ok) return;
-        const body = await res.json().catch(() => ({}));
-        const parsed = parseSucursales(body);
+        const res = await api.get("/sucursales");
+        const parsed = parseSucursales(res.data);
         setSucursalesOpts(parsed);
       } catch (err) {
         console.error("Error cargando sucursales:", err);
       }
     })();
-    //* eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const formatPesos = (n: number | null | undefined) => {
@@ -148,22 +139,9 @@ export default function DescuadresDashboard(): ReactElement {
         return;
       }
 
-      const token = getToken();
       const qs = buildQuery();
-      const res = await fetch("/api/caja/descuadres/top?" + qs, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Error ${res.status} ${txt}`);
-      }
-      const body = (await res.json().catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
+      const res = await api.get(`/caja/descuadres/top?${qs}`);
+      const body = res.data as Record<string, unknown>;
 
       const rawF = Array.isArray(body.faltantes) ? body.faltantes : [];
       const rawS = Array.isArray(body.sobrantes) ? body.sobrantes : [];
@@ -191,20 +169,12 @@ export default function DescuadresDashboard(): ReactElement {
   const handleExport = async () => {
     setError(null);
     try {
-      const token = getToken();
       const qs = buildQuery();
-      const res = await fetch("/api/caja/descuadres/export?" + qs, {
-        method: "GET",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      const res = await api.get(`/caja/descuadres/export?${qs}`, {
+        responseType: "blob",
       });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Error ${res.status} ${txt}`);
-      }
-      const blob = await res.blob();
-      const cd = res.headers.get("Content-Disposition") ?? "";
+      const blob = res.data as Blob;
+      const cd = res.headers["content-disposition"] ?? "";
       let filename = `descuadres-${from}-to-${to}.xlsx`;
       const match = /filename="?([^"]+)"?/.exec(cd);
       if (match && match[1]) filename = match[1];
