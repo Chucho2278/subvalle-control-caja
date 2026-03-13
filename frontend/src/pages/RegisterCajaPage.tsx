@@ -693,7 +693,7 @@ export default function RegisterCajaPage(): ReactElement {
           <legend className="rcp-legend">Ingresos</legend>
           <div className="rcp-ingresos-grid">
             <div className="rcp-ingreso-item">
-              <label>Venta total registrada</label>
+              <label>$ Venta total registrada</label>
               <input
                 name="ventaTotalRegistrada"
                 value={form.ventaTotalRegistrada}
@@ -716,7 +716,7 @@ export default function RegisterCajaPage(): ReactElement {
             </div>
 
             <div className="rcp-ingreso-item">
-              <label>Efectivo en caja</label>
+              <label>$ Efectivo en caja</label>
               <input
                 name="efectivoEnCaja"
                 value={form.efectivoEnCaja}
@@ -738,7 +738,7 @@ export default function RegisterCajaPage(): ReactElement {
             </div>
 
             <div className="rcp-ingreso-item">
-              <label>Tarjetas (valor)</label>
+              <label>$ Tarjetas (valor)</label>
               <input
                 name="tarjetas"
                 value={form.tarjetas}
@@ -782,7 +782,7 @@ export default function RegisterCajaPage(): ReactElement {
             </div>
 
             <div className="rcp-ingreso-item">
-              <label>Convenios (valor)</label>
+              <label>$ Convenios (valor)</label>
               <input
                 name="convenios"
                 value={form.convenios}
@@ -802,7 +802,7 @@ export default function RegisterCajaPage(): ReactElement {
             </div>
 
             <div className="rcp-ingreso-item">
-              <label>Bonos Sodexo (valor)</label>
+              <label>$ Bonos Sodexo (valor)</label>
               <input
                 name="bonos_sodexo"
                 value={form.bonos_sodexo}
@@ -904,7 +904,7 @@ export default function RegisterCajaPage(): ReactElement {
                 </label>
 
                 <label>
-                  Valor (convenio total):
+                  $ Valor (convenio):
                   <input
                     type="text"
                     value={entry.valor}
@@ -965,7 +965,7 @@ export default function RegisterCajaPage(): ReactElement {
           <legend className="rcp-legend">Egresos</legend>
           <div className="rcp-row">
             <label>
-              Pagos internos (valor):
+              $ Pagos internos (valor):
               <input
                 name="pagos_internos"
                 value={form.pagos_internos}

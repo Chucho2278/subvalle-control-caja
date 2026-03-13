@@ -56,6 +56,19 @@
   align-items: center;
 }
 
+/* Egresos / pagos internos */
+.rcp-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.rcp-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* INGRESOS grid (2 columnas desktop, 1 móvil) */
 .rcp-ingresos-grid {
   display: grid;
