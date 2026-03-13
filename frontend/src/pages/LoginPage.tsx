@@ -1,6 +1,7 @@
 // src/pages/LoginPage.tsx
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import axios from "axios";
 import {
   saveToken,
   saveUser,
@@ -10,6 +11,8 @@ import {
 } from "../utils/authService";
 import { loginApi } from "../api/auth";
 import type { UserMinimal } from "../auth/AuthContext";
+
+type ApiErrorResponse = { mensaje?: string; message?: string };
 
 type LocationState = { from?: { pathname?: string } };
 
@@ -113,7 +116,19 @@ export default function LoginPage() {
       else if (userObj.rol === "cajero") nav("/cajero", { replace: true });
       else nav("/dashboard", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error en login");
+      // Mostrar un mensaje amigable cuando el backend responda con 401
+      if (axios.isAxiosError(err) && err.response) {
+        const apiMensaje =
+          (err.response.data as ApiErrorResponse)?.mensaje ??
+          (err.response.data as ApiErrorResponse)?.message;
+        setError(
+          typeof apiMensaje === "string" && apiMensaje.trim() !== ""
+            ? apiMensaje
+            : "Usuario inválido",
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Error en login");
+      }
     } finally {
       setLoading(false);
     }
