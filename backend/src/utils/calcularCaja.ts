@@ -27,7 +27,7 @@ export function calcularCaja(datos: DatosCaja) {
 
   const valorAConsignar = efectivoEnCaja;
   const dineroRegistrado =
-    efectivoEnCaja + tarjetas + convenios + bonosSodexo - pagosInternos;
+    efectivoEnCaja + tarjetas + convenios + bonosSodexo + pagosInternos;
 
   const diferencia = dineroRegistrado - ventaTotalRegistrada;
 

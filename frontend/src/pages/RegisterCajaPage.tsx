@@ -337,27 +337,27 @@ export default function RegisterCajaPage(): ReactElement {
           ? res.data.convenios
           : [];
         if (Array.isArray(convs) && convs.length > 0) {
-          const mapped = convs.map((c) => ({
-            convenio_id:
+          const mapped = convs.map((c) => {
+            const convenioId =
               typeof c === "object" && c !== null && "convenio_id" in c
                 ? ((c as { convenio_id?: number | null }).convenio_id ?? null)
-                : null,
-            nombre_convenio:
+                : null;
+            const nombreConvenio =
               typeof c === "object" && c !== null && "nombre_convenio" in c
                 ? ((c as { nombre_convenio?: string | null }).nombre_convenio ??
                   null)
-                : null,
-            cantidad: String(
-              typeof c === "object" && c !== null && "cantidad" in c
-                ? ((c as { cantidad?: number | string }).cantidad ?? 0)
-                : 0,
-            ),
-            valor: String(
-              typeof c === "object" && c !== null && "valor" in c
-                ? ((c as { valor?: number | string }).valor ?? 0)
-                : 0,
-            ),
-          })) as ConvenioEntry[];
+                : null;
+
+            const cantidadNum = extractNumber(c, ["cantidad"]) ?? 0;
+            const valorNum = extractNumber(c, ["valor"]) ?? 0;
+
+            return {
+              convenio_id: convenioId,
+              nombre_convenio: nombreConvenio,
+              cantidad: formatIntegerDisplay(String(Math.round(cantidadNum))),
+              valor: formatIntegerDisplay(String(Math.round(valorNum))),
+            };
+          }) as ConvenioEntry[];
           setConvenioEntries(mapped);
         }
       } catch (err) {
@@ -558,6 +558,7 @@ export default function RegisterCajaPage(): ReactElement {
       cajerNombre: form.cajero_nombre || "",
       cajeroCedula: form.cajero_cedula || "",
       observacion: form.observacion ?? "",
+      conveniosItems: convenios_items,
     };
 
     setSaving(true);
