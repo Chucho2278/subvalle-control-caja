@@ -174,7 +174,7 @@ export const registrarCajaService = async (req: AuthRequest, res: Response) => {
         : `SELECT COUNT(*) c FROM registro_caja WHERE restaurante = ? AND turno = ? AND DATE(fecha_registro) = ?`,
       sucursalId !== null
         ? [sucursalId, registroToSave.turno, fechaYmdStr]
-        : [registroToSave.restaurante, registroToSave.turno, fechaYmdStr]
+        : [registroToSave.restaurante, registroToSave.turno, fechaYmdStr],
     )) as any;
 
     if (Number(rows?.[0]?.c ?? 0) > 0) {
@@ -186,7 +186,7 @@ export const registrarCajaService = async (req: AuthRequest, res: Response) => {
     /* ========= GUARDAR ========= */
     const insertId = await guardarRegistro(
       registroToSave,
-      convenios_items_parsed.length ? convenios_items_parsed : undefined
+      convenios_items_parsed.length ? convenios_items_parsed : undefined,
     );
 
     /* ========= AUDITORÍA ========= */

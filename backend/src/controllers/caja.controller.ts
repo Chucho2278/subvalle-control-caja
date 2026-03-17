@@ -76,7 +76,7 @@ export const obtenerCajaPorId = async (req: AuthRequest, res: Response) => {
    ===================================================== */
 export const actualizarCajaParcial = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   return actualizarCajaParcialService(req, res);
 };
@@ -122,7 +122,7 @@ export const obtenerResumenTurnos = async (req: AuthRequest, res: Response) => {
       from,
       to,
       restaurante ?? null,
-      sucursal_id ? Number(sucursal_id) : null
+      sucursal_id ? Number(sucursal_id) : null,
     );
 
     return res.json({
@@ -188,7 +188,7 @@ export const obtenerTopDescuadres = async (req: AuthRequest, res: Response) => {
     }
 
     const sucursalIds = parseSucursalIds(
-      req.query.sucursal_ids ?? req.query.sucursal_id
+      req.query.sucursal_ids ?? req.query.sucursal_id,
     );
 
     const topResult = await obtenerTopDescuadresService(
@@ -196,7 +196,7 @@ export const obtenerTopDescuadres = async (req: AuthRequest, res: Response) => {
       to,
       restaurante,
       sucursalIds,
-      limit
+      limit,
     );
 
     const faltantes: any[] = Array.isArray(topResult?.faltantes)
@@ -237,7 +237,7 @@ export const obtenerTopDescuadres = async (req: AuthRequest, res: Response) => {
    ===================================================== */
 export const exportarTopDescuadresExcel = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   try {
     const raw = req.query as Record<string, string | undefined>;
@@ -267,7 +267,7 @@ export const exportarTopDescuadresExcel = async (
     }
 
     const sucursalIds = parseSucursalIds(
-      req.query.sucursal_ids ?? req.query.sucursal_id
+      req.query.sucursal_ids ?? req.query.sucursal_id,
     );
 
     const topResult = await obtenerTopDescuadresService(
@@ -275,7 +275,7 @@ export const exportarTopDescuadresExcel = async (
       to,
       restaurante,
       sucursalIds,
-      limit
+      limit,
     );
 
     const faltantes: any[] = Array.isArray(topResult?.faltantes)
@@ -299,7 +299,7 @@ export const exportarTopDescuadresExcel = async (
       from,
       to,
       restaurante,
-      sucursalIds
+      sucursalIds,
     );
     const registrosMap: Record<string, any[]> = registrosMapRaw ?? {};
 
@@ -361,14 +361,14 @@ export const exportarTopDescuadresExcel = async (
       } else {
         // buscar en faltantes
         const foundF = faltantes.find(
-          (f) => String(f?.cajero_cedula) === ced && f?.cajero_nombre
+          (f) => String(f?.cajero_cedula) === ced && f?.cajero_nombre,
         );
         if (foundF && foundF.cajero_nombre) {
           safeName = String(foundF.cajero_nombre);
         } else {
           // buscar en sobrantes
           const foundS = sobrantes.find(
-            (s) => String(s?.cajero_cedula) === ced && s?.cajero_nombre
+            (s) => String(s?.cajero_cedula) === ced && s?.cajero_nombre,
           );
           if (foundS && foundS.cajero_nombre) {
             safeName = String(foundS.cajero_nombre);
@@ -404,6 +404,13 @@ export const exportarTopDescuadresExcel = async (
         { header: "Diferencia", key: "diferencia", width: 14 },
         { header: "Estado", key: "estado", width: 12 },
       ];
+
+      // Aplicar formato de fecha a la columna fecha_registro
+      sheet.columns.forEach((col) => {
+        if (col.key === "fecha_registro") {
+          col.numFmt = "dd/mm/yyyy hh:mm:ss";
+        }
+      });
 
       for (const r of rows) {
         sheet.addRow({
@@ -445,7 +452,7 @@ export const exportarTopDescuadresExcel = async (
         : `descuadres-${from}-to-${to}.xlsx`;
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     await workbook.xlsx.write(res);

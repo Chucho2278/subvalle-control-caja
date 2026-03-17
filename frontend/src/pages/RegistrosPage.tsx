@@ -57,6 +57,11 @@ function extractDateIso(obj: unknown, keys: string[]): string | null {
     if (!isNaN(d.getTime())) return d.toISOString();
   }
 
+  // Si ya es un formato ISO válido (termina con Z o tiene offset), devolverlo tal cual
+  if (/T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?$/.test(cand)) {
+    return cand;
+  }
+
   const trimmed = cand.split(".")[0];
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) return d.toISOString();

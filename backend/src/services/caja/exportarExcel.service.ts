@@ -6,6 +6,7 @@ import { AuthRequest } from "../../types/auth.types";
 import { pool } from "../../utils/db";
 import { addAudit } from "../../utils/auditorias";
 import { maxToDateForFrom } from "../../utils/caja/fechas";
+import { toISOStringWithColombiaOffset } from "../../models/caja.model";
 import { obtenerResumenTurnosService } from "./resumenTurnos.service";
 
 /* =========================
@@ -90,7 +91,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
         fechaFrom,
         fechaTo,
         restaurante,
-        sucursalId
+        sucursalId,
       );
 
       const workbook = new ExcelJS.Workbook();
@@ -132,7 +133,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
       sheet.addRow({
         turno: "TOTAL",
         ...Object.fromEntries(
-          Object.entries(total).map(([k, v]) => [k, Number(v) || 0])
+          Object.entries(total).map(([k, v]) => [k, Number(v) || 0]),
         ),
       });
 
@@ -159,11 +160,11 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="resumen-${fechaFrom}-a-${fechaTo}.xlsx"`
+        `attachment; filename="resumen-${fechaFrom}-a-${fechaTo}.xlsx"`,
       );
 
       await workbook.xlsx.write(res);
@@ -186,7 +187,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
       params.push(sucursalIds[0]);
     } else if (sucursalIds.length > 1) {
       condiciones.push(
-        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
       );
       params.push(...sucursalIds);
     }
@@ -195,16 +196,24 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
     params.push(fechaFrom, fechaTo);
 
     const sql = `
-      SELECT *
+      SELECT *, DATE_FORMAT(fecha_registro, '%Y-%m-%d %H:%i:%s') AS fecha_registro_str
       FROM registro_caja
       WHERE ${condiciones.join(" AND ")}
       ORDER BY fecha_registro DESC
     `;
 
-    const [rows] = (await pool.query(sql, params)) as [
+    const [rowsRaw] = (await pool.query(sql, params)) as [
       Array<Record<string, unknown>>,
-      unknown
+      unknown,
     ];
+
+    // Procesar fechas: dejar fecha_registro_str como string tal cual de BD
+    const rows: Array<Record<string, unknown>> = Array.isArray(rowsRaw)
+      ? rowsRaw.map((r: any) => ({
+          ...r,
+          // fecha_registro_str se deja como string
+        }))
+      : [];
 
     // 1) obtener lista de convenios usados en el rango/filtrado (id + nombre)
     const condicionesConvenios = [...condiciones];
@@ -221,10 +230,10 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
 
     const [conveniosListRaw] = (await pool.query(
       sqlConvenios,
-      paramsConvenios
+      paramsConvenios,
     )) as [
       Array<{ convenio_id?: number | null; nombre_convenio?: string | null }>,
-      unknown
+      unknown,
     ];
 
     const conveniosList = Array.isArray(conveniosListRaw)
@@ -257,7 +266,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
 
       const [convRows] = (await pool.query(
         sqlConveniosPorRegistro,
-        paramsConvenios
+        paramsConvenios,
       )) as [
         Array<{
           registro_id?: number;
@@ -266,7 +275,7 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
           cantidad?: number;
           valor?: number;
         }>,
-        unknown
+        unknown,
       ];
 
       if (Array.isArray(convRows)) {
@@ -400,6 +409,9 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
         key === "convenios_cantidad"
       ) {
         col.numFmt = INT_FORMAT;
+      } else if (key === "fecha_registro") {
+        // Formato de fecha para Excel: dd/mm/yyyy hh:mm:ss
+        col.numFmt = "dd/mm/yyyy hh:mm:ss";
       }
     });
 
@@ -416,11 +428,11 @@ export const exportarExcelService = async (req: AuthRequest, res: Response) => {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="registros-${fechaFrom}-a-${fechaTo}.xlsx"`
+      `attachment; filename="registros-${fechaFrom}-a-${fechaTo}.xlsx"`,
     );
 
     await workbook.xlsx.write(res);

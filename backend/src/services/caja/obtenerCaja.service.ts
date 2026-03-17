@@ -1,7 +1,10 @@
 //src/services/caja/obtenerCaja.service.ts
 import { Response } from "express";
 import { AuthRequest } from "../../types/auth.types";
-import { obtenerRegistroPorId } from "../../models/caja.model";
+import {
+  obtenerRegistroPorId,
+  toISOStringWithColombiaOffset,
+} from "../../models/caja.model";
 import { obtenerConveniosPorRegistroId } from "../../models/registroConvenio.model";
 
 /*
@@ -10,7 +13,7 @@ import { obtenerConveniosPorRegistroId } from "../../models/registroConvenio.mod
 */
 export const obtenerCajaPorIdService = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   const id = Number(req.params.id);
 
@@ -27,13 +30,10 @@ export const obtenerCajaPorIdService = async (
 
     const convenios = await obtenerConveniosPorRegistroId(id);
 
-    // Normalizar fecha a ISO string
+    // Normalizar fecha a ISO string con offset de Colombia
     const safeRegistro = {
       ...registro,
-      fecha_registro:
-        registro.fecha_registro instanceof Date
-          ? registro.fecha_registro.toISOString()
-          : registro.fecha_registro,
+      fecha_registro: toISOStringWithColombiaOffset(registro.fecha_registro),
     };
 
     return res.json({

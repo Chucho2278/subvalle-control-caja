@@ -1,5 +1,6 @@
 // src/services/caja/descuadres.service.ts
 import { pool } from "../../utils/db";
+import { toISOStringWithColombiaOffset } from "../../models/caja.model";
 
 /**
  * Tipos de salida
@@ -25,7 +26,7 @@ export const obtenerTopDescuadresService = async (
   to: string,
   restaurante: string | null,
   sucursalIds: number[] | null,
-  limit = 10
+  limit = 10,
 ): Promise<{ faltantes: TopItem[]; sobrantes: TopItem[] }> => {
   // Armamos WHERE dinámico
   const condiciones: string[] = ["DATE(fecha_registro) BETWEEN ? AND ?"];
@@ -37,7 +38,7 @@ export const obtenerTopDescuadresService = async (
   }
   if (Array.isArray(sucursalIds) && sucursalIds.length > 0) {
     condiciones.push(
-      `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+      `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
     );
     params.push(...sucursalIds);
   }
@@ -84,7 +85,7 @@ export const obtenerTopDescuadresService = async (
     .sort(
       (a, b) =>
         Math.abs(b.faltantes_total) - Math.abs(a.faltantes_total) ||
-        b.faltantes_count - a.faltantes_count
+        b.faltantes_count - a.faltantes_count,
     )
     .slice(0, limit);
 
@@ -93,7 +94,7 @@ export const obtenerTopDescuadresService = async (
     .sort(
       (a, b) =>
         b.sobrantes_total - a.sobrantes_total ||
-        b.sobrantes_count - a.sobrantes_count
+        b.sobrantes_count - a.sobrantes_count,
     )
     .slice(0, limit);
 
@@ -109,7 +110,7 @@ export const obtenerRegistrosParaCajeros = async (
   from: string,
   to: string,
   restaurante: string | null,
-  sucursalIds: number[] | null
+  sucursalIds: number[] | null,
 ): Promise<Record<string, Array<Record<string, unknown>>>> => {
   if (!Array.isArray(cedulas) || cedulas.length === 0) return {};
 
@@ -122,7 +123,7 @@ export const obtenerRegistrosParaCajeros = async (
   }
   if (Array.isArray(sucursalIds) && sucursalIds.length > 0) {
     condiciones.push(
-      `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+      `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
     );
     params.push(...sucursalIds);
   }
@@ -147,7 +148,12 @@ export const obtenerRegistrosParaCajeros = async (
   for (const r of arr) {
     const ced = String(r.cajero_cedula ?? "");
     if (!map[ced]) map[ced] = [];
-    map[ced].push(r);
+    // Normalizar fecha a ISO string con offset de Colombia
+    const registro = {
+      ...r,
+      fecha_registro: toISOStringWithColombiaOffset(r.fecha_registro),
+    };
+    map[ced].push(registro);
   }
   return map;
 };

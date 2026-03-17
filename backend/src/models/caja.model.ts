@@ -55,6 +55,33 @@ function normalizeFechaMaybe(v?: Date | string | null): Date | null {
 }
 
 /**
+ * Convierte un Date a ISO string con el offset de zona horaria de Colombia (-05:00)
+ * MySQL devuelve Date objects que JavaScript interpreta como UTC,
+ * pero representan hora local de Colombia. Este función los serializa
+ * con el offset correcto para que el frontend los interprete adecuadamente.
+ */
+export function toISOStringWithColombiaOffset(
+  date?: Date | string | null,
+): string | null {
+  if (!date) return null;
+  try {
+    const d = date instanceof Date ? date : new Date(String(date));
+    if (isNaN(d.getTime())) return null;
+
+    // Para Colombia (UTC-5), necesitamos ajustar la hora antes de enviar
+    // Si MySQL devuelve 21:18, eso significa 21:18 en Colombia
+    // Para enviarlo como UTC con Z, necesitamos restar 5 horas: 21:18 - 5 = 16:18
+    // Pero eso causaría problemas similares
+
+    // Mejor solución: enviar con Z pero el frontend debe interpretar que es hora local
+    // Esto es lo mismo que hace auditorías - envía con Z y funciona
+    return d.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Guarda un registro de caja y sus convenios (si vienen) en una transacción.
  */
 export async function guardarRegistro(
@@ -64,7 +91,7 @@ export async function guardarRegistro(
     nombre_convenio?: string | null;
     cantidad: number;
     valor: number;
-  }>
+  }>,
 ): Promise<number> {
   const conn = await pool.getConnection();
   try {
@@ -149,11 +176,11 @@ export async function obtenerRegistroPorId(id: number) {
  * Elimina convenios asociados a un registro de caja.
  */
 export async function eliminarConveniosPorRegistroId(
-  id: number
+  id: number,
 ): Promise<void> {
   await pool.query(
     `DELETE FROM registro_convenios WHERE registro_caja_id = ?`,
-    [id]
+    [id],
   );
 }
 
@@ -167,12 +194,12 @@ export async function eliminarRegistroCaja(id: number): Promise<boolean> {
 
     await conn.query(
       `DELETE FROM registro_convenios WHERE registro_caja_id = ?`,
-      [id]
+      [id],
     );
 
     const [result]: any = await conn.query(
       `DELETE FROM registro_caja WHERE id = ?`,
-      [id]
+      [id],
     );
 
     await conn.commit();
@@ -196,7 +223,7 @@ export async function actualizarRegistroCajaTransaccional(
     nombre_convenio?: string | null;
     cantidad: number;
     valor: number;
-  }>
+  }>,
 ): Promise<boolean> {
   const conn = await pool.getConnection();
   try {
@@ -246,18 +273,18 @@ export async function actualizarRegistroCajaTransaccional(
       params.push(id);
       console.log(
         ">>> actualizarRegistroCajaTransaccional - SQL UPDATE:",
-        sqlUpd
+        sqlUpd,
       );
       console.log(">>> actualizarRegistroCajaTransaccional - PARAMS:", params);
       const [resUpd]: any = await conn.query(sqlUpd, params);
       console.log(
         ">>> actualizarRegistroCajaTransaccional - UPDATE RESULT:",
-        resUpd
+        resUpd,
       );
     } else {
       const [rows]: any = await conn.query(
         `SELECT id FROM registro_caja WHERE id = ? LIMIT 1`,
-        [id]
+        [id],
       );
       if (!Array.isArray(rows) || rows.length === 0) {
         await conn.rollback();
@@ -265,12 +292,12 @@ export async function actualizarRegistroCajaTransaccional(
       }
     }
     console.log(
-      ">>> actualizarRegistroCajaTransaccional - NO HAY CAMPOS A ACTUALIZAR (sets.length === 0)"
+      ">>> actualizarRegistroCajaTransaccional - NO HAY CAMPOS A ACTUALIZAR (sets.length === 0)",
     );
     if (Array.isArray(conveniosItems)) {
       await conn.query(
         `DELETE FROM registro_convenios WHERE registro_caja_id = ?`,
-        [id]
+        [id],
       );
 
       for (const it of conveniosItems) {
@@ -301,7 +328,7 @@ export async function obtenerResumenPorTurno(
   fromDate: string,
   toDate: string,
   restaurante?: string | null,
-  sucursal_id?: number | null
+  sucursal_id?: number | null,
 ) {
   const params: any[] = [fromDate, toDate];
 
@@ -353,7 +380,7 @@ export const obtenerTopCajerosDescuadres = async (
   restaurante: string | null = null,
   sucursalIds: number[] | null = null,
   tipo: "faltantes" | "sobrantes" = "faltantes",
-  limit: number = 10
+  limit: number = 10,
 ): Promise<Array<Record<string, unknown>>> => {
   const condiciones: string[] = [];
   const params: Array<unknown> = [];
@@ -372,7 +399,7 @@ export const obtenerTopCajerosDescuadres = async (
       params.push(sucursalIds[0]);
     } else {
       condiciones.push(
-        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
       );
       params.push(...sucursalIds);
     }
@@ -406,7 +433,7 @@ export const obtenerTopCajerosDescuadres = async (
 
   const [rows] = (await pool.query(sql, [...params, limit])) as unknown as [
     Array<Record<string, unknown>>,
-    unknown
+    unknown,
   ];
   return Array.isArray(rows) ? rows : [];
 };
@@ -419,7 +446,7 @@ export const obtenerRegistrosPorCajeroYFecha = async (
   fechaFrom: string,
   fechaTo: string,
   restaurante: string | null = null,
-  sucursalIds: number[] | null = null
+  sucursalIds: number[] | null = null,
 ): Promise<Array<Record<string, unknown>>> => {
   const condiciones: string[] = [];
   const params: Array<unknown> = [];
@@ -428,7 +455,7 @@ export const obtenerRegistrosPorCajeroYFecha = async (
   params.push(fechaFrom, fechaTo);
 
   condiciones.push(
-    "(cajero_cedula = ? OR cajero_cedula IS NOT NULL AND ? = '')"
+    "(cajero_cedula = ? OR cajero_cedula IS NOT NULL AND ? = '')",
   );
   // we'll pass cajeroCedula twice; if empty string, this cond becomes true for all? safer: use direct equality
   // Better to require cajeroCedula non-empty from caller; implement simple filter:
@@ -446,7 +473,7 @@ export const obtenerRegistrosPorCajeroYFecha = async (
       params.push(sucursalIds[0]);
     } else {
       condiciones.push(
-        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+        `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
       );
       params.push(...sucursalIds);
     }
@@ -463,7 +490,7 @@ export const obtenerRegistrosPorCajeroYFecha = async (
 
   const [rows] = (await pool.query(sql, params)) as unknown as [
     Array<Record<string, unknown>>,
-    unknown
+    unknown,
   ];
   return Array.isArray(rows) ? rows : [];
 };

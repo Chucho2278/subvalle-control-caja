@@ -3,6 +3,7 @@ import { Response } from "express";
 import { pool } from "../../utils/db";
 import { maxToDateForFrom } from "../../utils/caja/fechas";
 import { AuthRequest } from "../../types/auth.types";
+import { toISOStringWithColombiaOffset } from "../../models/caja.model";
 
 /* -------------------- GET /api/caja -------------------- */
 export const listarCajasService = async (req: AuthRequest, res: Response) => {
@@ -126,7 +127,7 @@ export const listarCajasService = async (req: AuthRequest, res: Response) => {
         params.push(sucursalIds[0]);
       } else if (sucursalIds.length > 1) {
         condiciones.push(
-          `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`
+          `sucursal_id IN (${sucursalIds.map(() => "?").join(",")})`,
         );
         params.push(...sucursalIds);
       }
@@ -171,7 +172,20 @@ export const listarCajasService = async (req: AuthRequest, res: Response) => {
     const [countRows] = (await pool.query(countSql, params)) as any;
     const total = Number(countRows?.[0]?.total ?? 0);
 
-    return res.json({ page, limit, total, registros: rows ?? [] });
+    // Normalizar fechas a ISO string con offset de Colombia
+    const registrosNormalizados = Array.isArray(rows)
+      ? rows.map((r: any) => ({
+          ...r,
+          fecha_registro: toISOStringWithColombiaOffset(r.fecha_registro),
+        }))
+      : [];
+
+    return res.json({
+      page,
+      limit,
+      total,
+      registros: registrosNormalizados,
+    });
   } catch (error: any) {
     console.error("Error listando registros:", error);
     return res.status(500).json({

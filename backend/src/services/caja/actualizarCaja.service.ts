@@ -5,6 +5,7 @@ import { AuthRequest } from "../../types/auth.types";
 import {
   obtenerRegistroPorId,
   actualizarRegistroCajaTransaccional,
+  toISOStringWithColombiaOffset,
 } from "../../models/caja.model";
 
 import { calcularCaja, DatosCaja } from "../../utils/calcularCaja";
@@ -17,7 +18,7 @@ import { diffChanges } from "../../utils/diffChanges";
 */
 export const actualizarCajaParcialService = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   const id = Number(req.params.id);
 
@@ -31,7 +32,7 @@ export const actualizarCajaParcialService = async (
   console.log(">>> PATCH /api/caja/:id - req.user:", req.user);
   console.log(
     ">>> PATCH /api/caja/:id - req.body (raw):",
-    JSON.stringify(req.body)
+    JSON.stringify(req.body),
   );
 
   try {
@@ -44,7 +45,7 @@ export const actualizarCajaParcialService = async (
     console.log(">>> PATCH /api/caja/:id - req.user:", req.user);
     console.log(
       ">>> PATCH /api/caja/:id - req.body (raw):",
-      JSON.stringify(req.body)
+      JSON.stringify(req.body),
     );
     /* =========================
        MERGE DE DATOS
@@ -59,14 +60,14 @@ export const actualizarCajaParcialService = async (
         cambios.ventaTotalRegistrada ??
           cambios.venta_total_registrada ??
           original.venta_total_registrada ??
-          0
+          0,
       ),
 
       efectivoEnCaja: Number(
         cambios.efectivoEnCaja ??
           cambios.efectivo_en_caja ??
           original.efectivo_en_caja ??
-          0
+          0,
       ),
 
       tarjetas: Number(cambios.tarjetas ?? original.tarjetas ?? 0),
@@ -75,7 +76,7 @@ export const actualizarCajaParcialService = async (
         cambios.tarjetas_cantidad ??
           cambios.tarjetasCantidad ??
           original.tarjetas_cantidad ??
-          0
+          0,
       ),
 
       convenios: Number(cambios.convenios ?? original.convenios ?? 0),
@@ -84,35 +85,35 @@ export const actualizarCajaParcialService = async (
         cambios.convenios_cantidad ??
           cambios.conveniosCantidad ??
           original.convenios_cantidad ??
-          0
+          0,
       ),
 
       bonosSodexo: Number(
         cambios.bonosSodexo ??
           cambios.bonos_sodexo ??
           original.bonos_sodexo ??
-          0
+          0,
       ),
 
       bonosSodexo_cantidad: Number(
         cambios.bonosSodexo_cantidad ??
           cambios.bonos_sodexo_cantidad ??
           original.bonos_sodexo_cantidad ??
-          0
+          0,
       ),
 
       pagosInternos: Number(
         cambios.pagosInternos ??
           cambios.pagos_internos ??
           original.pagos_internos ??
-          0
+          0,
       ),
 
       pagosInternos_cantidad: Number(
         cambios.pagosInternos_cantidad ??
           cambios.pagos_internos_cantidad ??
           original.pagos_internos_cantidad ??
-          0
+          0,
       ),
 
       observacion: cambios.observacion ?? original.observacion ?? null,
@@ -133,8 +134,8 @@ export const actualizarCajaParcialService = async (
         typeof cambios.sucursal_id === "number"
           ? Number(cambios.sucursal_id)
           : typeof cambios.sucursalId === "number"
-          ? Number(cambios.sucursalId)
-          : original.sucursal_id ?? null,
+            ? Number(cambios.sucursalId)
+            : (original.sucursal_id ?? null),
     } as const;
 
     // ... después de construir `merged` y antes del recálculo:
@@ -216,8 +217,8 @@ export const actualizarCajaParcialService = async (
           typeof it.nombre_convenio === "string"
             ? it.nombre_convenio
             : typeof it.nombre === "string"
-            ? it.nombre
-            : null;
+              ? it.nombre
+              : null;
 
         if (cantidad > 0 || valor > 0 || convenio_id || nombre_convenio) {
           convenios_items_parsed.push({
@@ -233,12 +234,12 @@ export const actualizarCajaParcialService = async (
     // ... después de `cambiosSnake`:
     console.log(
       ">>> PATCH /api/caja/:id - cambiosSnake (a aplicar):",
-      cambiosSnake
+      cambiosSnake,
     );
     if (convenios_items_parsed)
       console.log(
         ">>> PATCH /api/caja/:id - convenios_items_parsed:",
-        convenios_items_parsed
+        convenios_items_parsed,
       );
     /* =========================
        ACTUALIZAR EN DB
@@ -246,7 +247,7 @@ export const actualizarCajaParcialService = async (
     const ok = await actualizarRegistroCajaTransaccional(
       id,
       cambiosSnake,
-      convenios_items_parsed
+      convenios_items_parsed,
     );
 
     if (!ok) {
@@ -257,12 +258,22 @@ export const actualizarCajaParcialService = async (
 
     const actualizado = await obtenerRegistroPorId(id);
 
+    // Normalizar fecha a ISO string para consistencia
+    const safeActualizado = actualizado
+      ? {
+          ...actualizado,
+          fecha_registro: toISOStringWithColombiaOffset(
+            actualizado.fecha_registro,
+          ),
+        }
+      : null;
+
     /* =========================
        AUDITORÍA
     ========================= */
     const changes = diffChanges(
       original as Record<string, unknown>,
-      cambiosSnake
+      cambiosSnake,
     );
 
     const detalleAudit = JSON.stringify({
@@ -288,7 +299,7 @@ export const actualizarCajaParcialService = async (
     return res.json({
       mensaje: "Registro actualizado y recalculado",
       resultado,
-      registro: actualizado ?? null,
+      registro: safeActualizado,
     });
   } catch (error: unknown) {
     console.error("Error actualizando caja:", error);
