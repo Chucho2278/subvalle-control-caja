@@ -1,6 +1,5 @@
 // src/services/caja/descuadres.service.ts
 import { pool } from "../../utils/db";
-import { toISOStringWithColombiaOffset } from "../../models/caja.model";
 
 /**
  * Tipos de salida
@@ -135,7 +134,7 @@ export const obtenerRegistrosParaCajeros = async (
   const where = condiciones.length ? ` WHERE ${condiciones.join(" AND ")}` : "";
 
   const sql = `
-    SELECT *
+    SELECT *, DATE_FORMAT(fecha_registro, '%Y-%m-%d %H:%i:%s') AS fecha_registro_str
     FROM registro_caja
     ${where}
     ORDER BY fecha_registro DESC
@@ -148,10 +147,10 @@ export const obtenerRegistrosParaCajeros = async (
   for (const r of arr) {
     const ced = String(r.cajero_cedula ?? "");
     if (!map[ced]) map[ced] = [];
-    // Normalizar fecha a ISO string con offset de Colombia
+    // Usar fecha_registro_str tal cual de BD
     const registro = {
       ...r,
-      fecha_registro: toISOStringWithColombiaOffset(r.fecha_registro),
+      fecha_registro: r.fecha_registro_str,
     };
     map[ced].push(registro);
   }

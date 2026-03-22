@@ -3,7 +3,6 @@ import { Response } from "express";
 import { pool } from "../../utils/db";
 import { maxToDateForFrom } from "../../utils/caja/fechas";
 import { AuthRequest } from "../../types/auth.types";
-import { toISOStringWithColombiaOffset } from "../../models/caja.model";
 
 /* -------------------- GET /api/caja -------------------- */
 export const listarCajasService = async (req: AuthRequest, res: Response) => {
@@ -154,7 +153,7 @@ export const listarCajasService = async (req: AuthRequest, res: Response) => {
       : "";
 
     const sql = `
-      SELECT *
+      SELECT *, DATE_FORMAT(fecha_registro, '%Y-%m-%d %H:%i:%s') AS fecha_registro_str
       FROM registro_caja
       ${where}
       ORDER BY fecha_registro DESC
@@ -172,11 +171,11 @@ export const listarCajasService = async (req: AuthRequest, res: Response) => {
     const [countRows] = (await pool.query(countSql, params)) as any;
     const total = Number(countRows?.[0]?.total ?? 0);
 
-    // Normalizar fechas a ISO string con offset de Colombia
+    // Usar fecha_registro_str tal cual de BD (hora local de Colombia)
     const registrosNormalizados = Array.isArray(rows)
       ? rows.map((r: any) => ({
           ...r,
-          fecha_registro: toISOStringWithColombiaOffset(r.fecha_registro),
+          fecha_registro: r.fecha_registro_str,
         }))
       : [];
 

@@ -1,10 +1,7 @@
 //src/services/caja/obtenerCaja.service.ts
 import { Response } from "express";
 import { AuthRequest } from "../../types/auth.types";
-import {
-  obtenerRegistroPorId,
-  toISOStringWithColombiaOffset,
-} from "../../models/caja.model";
+import { obtenerRegistroPorId } from "../../models/caja.model";
 import { obtenerConveniosPorRegistroId } from "../../models/registroConvenio.model";
 
 /*
@@ -30,10 +27,9 @@ export const obtenerCajaPorIdService = async (
 
     const convenios = await obtenerConveniosPorRegistroId(id);
 
-    // Normalizar fecha a ISO string con offset de Colombia
+    // La fecha ya viene formateada como string de la BD (hora local)
     const safeRegistro = {
       ...registro,
-      fecha_registro: toISOStringWithColombiaOffset(registro.fecha_registro),
     };
 
     return res.json({

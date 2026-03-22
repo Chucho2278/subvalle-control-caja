@@ -716,7 +716,7 @@ export default function RegisterCajaPage(): ReactElement {
             </div>
 
             <div className="rcp-ingreso-item">
-              <label>$ Efectivo en caja</label>
+              <label>$ Dinero consignado</label>
               <input
                 name="efectivoEnCaja"
                 value={form.efectivoEnCaja}

@@ -5,7 +5,6 @@ import { AuthRequest } from "../../types/auth.types";
 import {
   obtenerRegistroPorId,
   actualizarRegistroCajaTransaccional,
-  toISOStringWithColombiaOffset,
 } from "../../models/caja.model";
 
 import { calcularCaja, DatosCaja } from "../../utils/calcularCaja";
@@ -258,15 +257,8 @@ export const actualizarCajaParcialService = async (
 
     const actualizado = await obtenerRegistroPorId(id);
 
-    // Normalizar fecha a ISO string para consistencia
-    const safeActualizado = actualizado
-      ? {
-          ...actualizado,
-          fecha_registro: toISOStringWithColombiaOffset(
-            actualizado.fecha_registro,
-          ),
-        }
-      : null;
+    // La fecha ya viene formateada como string de la BD
+    const safeActualizado = actualizado;
 
     /* =========================
        AUDITORÍA

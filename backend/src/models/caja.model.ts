@@ -163,13 +163,20 @@ export async function guardarRegistro(
  */
 export async function obtenerRegistroPorId(id: number) {
   const sql = `
-    SELECT *
+    SELECT *, DATE_FORMAT(fecha_registro, '%Y-%m-%d %H:%i:%s') AS fecha_registro_str
     FROM registro_caja
     WHERE id = ?
     LIMIT 1
   `;
   const [rows]: any = await pool.query(sql, [id]);
-  return Array.isArray(rows) && rows.length ? rows[0] : null;
+  if (Array.isArray(rows) && rows.length) {
+    const row = rows[0];
+    return {
+      ...row,
+      fecha_registro: row.fecha_registro_str,
+    };
+  }
+  return null;
 }
 
 /**
